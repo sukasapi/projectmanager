@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* Palet brand Owlorix — navy/teal (bulu burung hantu) */
+    --color-brand-50: #eef4f7;
+    --color-brand-100: #d7e5ec;
+    --color-brand-200: #b2cdda;
+    --color-brand-300: #7ba7bc;
+    --color-brand-400: #5b8fa8;
+    --color-brand-500: #3f7891;
+    --color-brand-600: #336178;
+    --color-brand-700: #2b4f62;
+    --color-brand-800: #214251;
+    --color-brand-900: #16313f;
+    --color-brand-950: #0e2230;
+
+    /* Aksen emas — mata burung hantu */
+    --color-gold-50: #fbf6e9;
+    --color-gold-100: #f5e9c4;
+    --color-gold-200: #ecd58c;
+    --color-gold-300: #e0bd54;
+    --color-gold-400: #d4a82c;
+    --color-gold-500: #bb8f20;
+    --color-gold-600: #9c7718;
+    --color-gold-700: #7d5f14;
+}
+
+[x-cloak] { display: none !important; }
