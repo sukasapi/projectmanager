@@ -110,7 +110,7 @@
                     <li wire:key="rev-{{ $r->id }}" class="px-4 py-2.5 text-xs">
                         <div class="font-medium text-slate-700">
                             {{ $r->tugasShot?->shot?->shot_code ?? '—' }}
-                            <span class="text-slate-400">/ {{ $r->tugasShot?->task_type?->label() }}</span>
+                            <span class="text-slate-400">/ {{ $r->tugasShot?->tahap?->name }}</span>
                         </div>
                         <div class="mt-0.5 text-slate-500">
                             {{ $r->author?->name ?? 'Sistem' }} ·

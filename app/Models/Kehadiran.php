@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Kehadiran harian (1 baris per user per tanggal). work_mode ditentukan per hari.
@@ -17,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[ObservedBy([KehadiranObserver::class])]
 class Kehadiran extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'kf_kehadiran';
 
@@ -69,5 +71,26 @@ class Kehadiran extends Model
     public function sedangBerjalan(): bool
     {
         return $this->clock_in !== null && $this->clock_out === null;
+    }
+
+    /**
+     * Apakah kehadiran user sudah tercatat hari ini (WIB) — sudah clock-in,
+     * atau berstatus izin/sakit/cuti. Dipakai "absence gate" untuk mengunci
+     * fitur sampai user absen.
+     */
+    public static function sudahTercatatHariIni(int $userId): bool
+    {
+        $hari = Carbon::now(config('kehadiran.timezone'))->toDateString();
+
+        return static::where('user_id', $userId)
+            ->where('tanggal', $hari)
+            ->where(fn ($q) => $q
+                ->whereNotNull('clock_in')
+                ->orWhereIn('status', [
+                    StatusKehadiran::IZIN->value,
+                    StatusKehadiran::SAKIT->value,
+                    StatusKehadiran::CUTI->value,
+                ]))
+            ->exists();
     }
 }

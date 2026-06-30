@@ -6,6 +6,7 @@ use App\Actions\ClockIn;
 use App\Actions\ClockOut;
 use App\Enums\ModeKerja;
 use App\Models\Kehadiran;
+use App\Models\Perusahaan;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
@@ -72,8 +73,8 @@ class Absen extends Component
         return view('livewire.kehadiran.absen', [
             'kehadiran' => $kehadiran,
             'daftarMode' => ModeKerja::cases(),
-            'jamMasuk' => config('kehadiran.jam_masuk'),
-            'jamPulang' => config('kehadiran.jam_pulang'),
+            'jamMasuk' => Perusahaan::current()->jamMasuk(),
+            'jamPulang' => Perusahaan::current()->jamPulang(),
             'tz' => config('kehadiran.timezone'),
         ]);
     }

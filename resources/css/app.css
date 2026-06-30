@@ -35,3 +35,10 @@
 }
 
 [x-cloak] { display: none !important; }
+
+/* Splashscreen: bar loading indeterminate. */
+@keyframes loadbar {
+    0%   { transform: translateX(-130%); }
+    100% { transform: translateX(360%); }
+}
+.animate-loadbar { animation: loadbar 1.1s ease-in-out infinite; }

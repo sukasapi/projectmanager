@@ -5,12 +5,19 @@ namespace Tests\Feature;
 use App\Actions\CreateShot;
 use App\Models\Adegan;
 use App\Models\Proyek;
+use Database\Seeders\TahapSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ShotDurationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(TahapSeeder::class); // tahap Produksi: Animate, Simulate
+    }
 
     private function scene(): Adegan
     {
@@ -34,7 +41,7 @@ class ShotDurationTest extends TestCase
         $this->assertSame(196, $scene->fresh()->total_duration);
     }
 
-    public function test_membuat_shot_otomatis_membuat_empat_sub_pipeline(): void
+    public function test_membuat_shot_otomatis_membuat_sub_pipeline_dari_tahap_aktif(): void
     {
         $scene = $this->scene();
 
@@ -42,10 +49,11 @@ class ShotDurationTest extends TestCase
             'scene_id' => $scene->id, 'shot_code' => 'SC01_SH01', 'duration_seconds' => 50,
         ]);
 
-        $this->assertSame(4, $shot->tugasShot()->count());
+        // Default tahap Produksi level-SHOT = Animate, Simulate (proses #7).
+        $this->assertSame(2, $shot->tugasShot()->count());
         $this->assertEqualsCanonicalizing(
-            ['LAYOUT', 'ANIMATE', 'SIMULATE', 'LRC'],
-            $shot->tugasShot->map(fn ($t) => $t->task_type->value)->all()
+            ['Animate', 'Simulate'],
+            $shot->tugasShot->map(fn ($t) => $t->tahap->name)->all()
         );
     }
 

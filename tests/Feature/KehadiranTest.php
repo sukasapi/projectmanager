@@ -8,6 +8,7 @@ use App\Enums\EmploymentType;
 use App\Enums\ModeKerja;
 use App\Enums\StatusKehadiran;
 use App\Livewire\Kehadiran\Absen;
+use App\Models\Kehadiran;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -128,6 +129,28 @@ class KehadiranTest extends TestCase
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('kf_kehadiran', ['user_id' => $user->id]);
+    }
+
+    public function test_rekap_melengkapi_clock_out_tepat_waktu(): void
+    {
+        $this->setWaktuWib('20:00'); // malam, setelah jam kerja
+        $tz = 'Asia/Jakarta';
+        $hari = Carbon::now($tz)->toDateString();
+        $user = User::factory()->create();
+
+        // Clock-in 09:00 tanpa clock-out.
+        $k = Kehadiran::create([
+            'user_id' => $user->id, 'tanggal' => $hari,
+            'clock_in' => Carbon::createFromFormat('Y-m-d H:i', $hari.' 09:00', $tz)->utc(),
+            'status' => StatusKehadiran::HADIR->value,
+        ]);
+        $this->assertNull($k->clock_out);
+
+        $this->artisan('kehadiran:rekap')->assertSuccessful();
+
+        $k->refresh();
+        $this->assertNotNull($k->clock_out);                    // diisi jam pulang
+        $this->assertSame(480, $k->work_duration_minutes);      // 09:00–17:00 = 8 jam
     }
 
     public function test_rekap_menandai_alpha_bagi_yang_tidak_absen(): void

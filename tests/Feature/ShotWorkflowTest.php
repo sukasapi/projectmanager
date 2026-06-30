@@ -7,7 +7,6 @@ use App\Actions\RecordShotRevision;
 use App\Actions\TransitionShotTaskStatus;
 use App\Enums\EmploymentType;
 use App\Enums\RevisionStatus;
-use App\Enums\ShotTaskType;
 use App\Enums\TaskStatus;
 use App\Exceptions\InvalidShotTaskTransition;
 use App\Models\Adegan;
@@ -15,6 +14,7 @@ use App\Models\Proyek;
 use App\Models\Shot;
 use App\Models\TugasShot;
 use App\Models\User;
+use Database\Seeders\TahapSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -27,6 +27,7 @@ class ShotWorkflowTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seed(TahapSeeder::class); // tahap Produksi default: Animate, Simulate
         $this->transition = app(TransitionShotTaskStatus::class);
     }
 
@@ -40,9 +41,10 @@ class ShotWorkflowTest extends TestCase
         ]);
     }
 
-    private function task(Shot $shot, ShotTaskType $type): TugasShot
+    /** Ambil sub-task sebuah shot berdasarkan kode tahap (mis. 'animate', 'simulate'). */
+    private function task(Shot $shot, string $tahapCode): TugasShot
     {
-        return $shot->tugasShot()->where('task_type', $type->value)->first();
+        return $shot->tugasShot()->whereHas('tahap', fn ($q) => $q->where('code', $tahapCode))->first();
     }
 
     private function user(EmploymentType $type): User
@@ -58,9 +60,9 @@ class ShotWorkflowTest extends TestCase
         $this->transition->handle($task, TaskStatus::APPROVED, $actor);
     }
 
-    public function test_layout_boleh_langsung_dimulai(): void
+    public function test_tahap_pertama_boleh_langsung_dimulai(): void
     {
-        $task = $this->task($this->shot(), ShotTaskType::LAYOUT);
+        $task = $this->task($this->shot(), 'animate');
 
         $this->transition->handle($task, TaskStatus::IN_PROGRESS, $this->user(EmploymentType::CONTRACT));
 
@@ -70,7 +72,7 @@ class ShotWorkflowTest extends TestCase
     public function test_simulate_tidak_bisa_mulai_sebelum_animate_disetujui(): void
     {
         $shot = $this->shot();
-        $simulate = $this->task($shot, ShotTaskType::SIMULATE);
+        $simulate = $this->task($shot, 'simulate');
 
         $this->expectException(InvalidShotTaskTransition::class);
         $this->transition->handle($simulate, TaskStatus::IN_PROGRESS, $this->user(EmploymentType::CONTRACT));
@@ -81,10 +83,9 @@ class ShotWorkflowTest extends TestCase
         $shot = $this->shot();
         $actor = $this->user(EmploymentType::CONTRACT);
 
-        $this->approve($this->task($shot, ShotTaskType::LAYOUT), $actor);
-        $this->approve($this->task($shot, ShotTaskType::ANIMATE), $actor);
+        $this->approve($this->task($shot, 'animate'), $actor);
 
-        $simulate = $this->task($shot, ShotTaskType::SIMULATE);
+        $simulate = $this->task($shot, 'simulate');
         $this->transition->handle($simulate, TaskStatus::IN_PROGRESS, $actor);
 
         $this->assertSame(TaskStatus::IN_PROGRESS, $simulate->fresh()->status);
@@ -92,7 +93,7 @@ class ShotWorkflowTest extends TestCase
 
     public function test_transisi_meloncat_ditolak(): void
     {
-        $task = $this->task($this->shot(), ShotTaskType::LAYOUT);
+        $task = $this->task($this->shot(), 'animate');
 
         $this->expectException(InvalidShotTaskTransition::class);
         // NOT_STARTED -> APPROVED bukan transisi sah.
@@ -101,7 +102,7 @@ class ShotWorkflowTest extends TestCase
 
     public function test_magang_tidak_boleh_menyetujui(): void
     {
-        $task = $this->task($this->shot(), ShotTaskType::LAYOUT);
+        $task = $this->task($this->shot(), 'animate');
         $intern = $this->user(EmploymentType::INTERN);
 
         $this->transition->handle($task, TaskStatus::IN_PROGRESS, $intern);
@@ -113,7 +114,7 @@ class ShotWorkflowTest extends TestCase
 
     public function test_karyawan_kontrak_boleh_menyetujui(): void
     {
-        $task = $this->task($this->shot(), ShotTaskType::LAYOUT);
+        $task = $this->task($this->shot(), 'animate');
         $actor = $this->user(EmploymentType::CONTRACT);
 
         $this->approve($task, $actor);
@@ -124,7 +125,7 @@ class ShotWorkflowTest extends TestCase
     public function test_riwayat_revisi_bersifat_append_only(): void
     {
         $shot = $this->shot();
-        $task = $this->task($shot, ShotTaskType::LAYOUT);
+        $task = $this->task($shot, 'animate');
         $actor = $this->user(EmploymentType::CONTRACT);
         $record = app(RecordShotRevision::class);
 
@@ -138,7 +139,7 @@ class ShotWorkflowTest extends TestCase
 
     public function test_setiap_transisi_tercatat_di_riwayat(): void
     {
-        $task = $this->task($this->shot(), ShotTaskType::LAYOUT);
+        $task = $this->task($this->shot(), 'animate');
         $actor = $this->user(EmploymentType::CONTRACT);
 
         $this->transition->handle($task, TaskStatus::IN_PROGRESS, $actor);

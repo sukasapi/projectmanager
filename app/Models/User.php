@@ -30,6 +30,11 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'phone',
+        'whatsapp',
+        'address',
+        'latitude',
+        'longitude',
         'employment_type',
         'is_active',
         'last_active_at',
@@ -54,6 +59,8 @@ class User extends Authenticatable
             'employment_type' => EmploymentType::class,
             'is_active' => 'boolean',
             'last_active_at' => 'datetime',
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
         ];
     }
 
@@ -62,6 +69,18 @@ class User extends Authenticatable
     {
         return $this->last_active_at !== null
             && $this->last_active_at->gt(now()->subMinutes((int) config('kehadiran.ambang_online_menit', 5)));
+    }
+
+    /** Super Admin: semua hak supervisor + konfigurasi aplikasi (pipeline, perusahaan). */
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === 'Super Admin';
+    }
+
+    /** Punya hak supervisi (produksi, tim, monitoring): Supervisor atau Super Admin. */
+    public function isSupervisory(): bool
+    {
+        return in_array($this->role, ['Supervisor', 'Super Admin'], true);
     }
 
     // ----- Relasi penugasan (semua berbasis artist_id / pivot) -----

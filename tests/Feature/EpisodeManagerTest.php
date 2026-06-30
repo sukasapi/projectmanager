@@ -18,7 +18,8 @@ class EpisodeManagerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->actingAs(User::factory()->create());
+        // Kelola episode kini butuh hak supervisi (Supervisor/Super Admin).
+        $this->actingAs(User::factory()->create(['role' => 'Supervisor']));
     }
 
     public function test_halaman_proyek_dilindungi_auth(): void
@@ -103,7 +104,8 @@ class EpisodeManagerTest extends TestCase
 
         Livewire::test(DaftarProyek::class)->call('delete', $proyek->id);
 
-        $this->assertDatabaseMissing('kf_proyek', ['id' => $proyek->id]);
+        // Soft delete: baris tetap ada dengan deleted_at terisi (dapat dipulihkan).
+        $this->assertSoftDeleted('kf_proyek', ['id' => $proyek->id]);
     }
 
     public function test_relasi_klien_proyek(): void

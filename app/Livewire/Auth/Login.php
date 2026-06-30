@@ -42,7 +42,7 @@ class Login extends Component
         RateLimiter::clear($this->throttleKey());
         session()->regenerate();
 
-        return $this->redirectIntended(route('shot-matrix'), navigate: true);
+        return $this->redirectIntended(route('dashboard'), navigate: true);
     }
 
     protected function ensureIsNotRateLimited(): void

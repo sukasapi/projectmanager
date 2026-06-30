@@ -25,12 +25,12 @@ class AppServiceProvider extends ServiceProvider
         // Magang tidak boleh menyetujui tugas (selaras dengan TransitionShotTaskStatus).
         Gate::define('approve-shot-task', fn (User $user) => $user->employment_type !== EmploymentType::INTERN);
 
-        // Review logbook & pemantauan kehadiran: hanya supervisor (peran 'Supervisor').
-        // Lihat ABSENSI.md §8. (Penolakan review logbook sendiri ditangani di Action.)
-        Gate::define('review-logbook', fn (User $user) => $user->role === 'Supervisor');
-        Gate::define('monitor-kehadiran', fn (User $user) => $user->role === 'Supervisor');
+        // Hak supervisi (produksi, tim, monitoring, review logbook): Supervisor atau Super Admin.
+        Gate::define('review-logbook', fn (User $user) => $user->isSupervisory());
+        Gate::define('monitor-kehadiran', fn (User $user) => $user->isSupervisory());
+        Gate::define('manage-tim', fn (User $user) => $user->isSupervisory());
 
-        // Kelola anggota tim (buat/edit/aktif-nonaktif artis): hanya supervisor.
-        Gate::define('manage-tim', fn (User $user) => $user->role === 'Supervisor');
+        // Konfigurasi aplikasi (pipeline, profil & kebijakan perusahaan): khusus Super Admin.
+        Gate::define('manage-config', fn (User $user) => $user->isSuperAdmin());
     }
 }

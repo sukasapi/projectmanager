@@ -32,6 +32,16 @@ class DaftarTim extends Component
 
     public string $role = '';
 
+    public string $phone = '';
+
+    public string $whatsapp = '';
+
+    public string $address = '';
+
+    public ?string $latitude = null;
+
+    public ?string $longitude = null;
+
     public string $employmentType = '';
 
     public string $password = '';
@@ -40,12 +50,14 @@ class DaftarTim extends Component
 
     public function mount(): void
     {
+        // Master Tim & Artis hanya untuk Super Admin (kelola akun/artis = administrasi).
+        abort_unless(Gate::allows('manage-config'), 403);
         $this->employmentType = EmploymentType::CONTRACT->value;
     }
 
     private function pastikanBolehKelola(): void
     {
-        abort_unless(Gate::allows('manage-tim'), 403);
+        abort_unless(Gate::allows('manage-config'), 403);
     }
 
     public function create(): void
@@ -64,6 +76,11 @@ class DaftarTim extends Component
         $this->name = $user->name;
         $this->email = $user->email;
         $this->role = $user->role ?? '';
+        $this->phone = $user->phone ?? '';
+        $this->whatsapp = $user->whatsapp ?? '';
+        $this->address = $user->address ?? '';
+        $this->latitude = $user->latitude !== null ? (string) $user->latitude : null;
+        $this->longitude = $user->longitude !== null ? (string) $user->longitude : null;
         $this->employmentType = $user->employment_type?->value ?? EmploymentType::CONTRACT->value;
         $this->isActive = (bool) $user->is_active;
         $this->password = '';
@@ -79,6 +96,11 @@ class DaftarTim extends Component
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('kf_pengguna', 'email')->ignore($this->editingId)],
             'role' => ['nullable', 'string', 'max:100'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'whatsapp' => ['nullable', 'string', 'max:30'],
+            'address' => ['nullable', 'string', 'max:500'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'employmentType' => ['required', Rule::in(array_column(EmploymentType::cases(), 'value'))],
             'password' => [$this->editingId ? 'nullable' : 'required', 'string', 'min:8'],
             'isActive' => ['boolean'],
@@ -86,10 +108,22 @@ class DaftarTim extends Component
             'name' => 'nama', 'employmentType' => 'jenis kepegawaian', 'password' => 'kata sandi',
         ]);
 
+        // Hanya Super Admin yang boleh menetapkan peran Super Admin (cegah eskalasi).
+        if (($validated['role'] ?? null) === 'Super Admin' && Gate::denies('manage-config')) {
+            $this->addError('role', 'Hanya Super Admin yang dapat menetapkan peran Super Admin.');
+
+            return;
+        }
+
         $data = [
             'name' => $validated['name'],
             'email' => $validated['email'],
             'role' => $validated['role'] ?: null,
+            'phone' => $validated['phone'] ?: null,
+            'whatsapp' => $validated['whatsapp'] ?: null,
+            'address' => $validated['address'] ?: null,
+            'latitude' => $validated['latitude'] !== '' ? $validated['latitude'] : null,
+            'longitude' => $validated['longitude'] !== '' ? $validated['longitude'] : null,
             'employment_type' => $validated['employmentType'],
             'is_active' => $validated['isActive'],
         ];
@@ -121,7 +155,7 @@ class DaftarTim extends Component
 
     protected function resetForm(): void
     {
-        $this->reset(['editingId', 'name', 'email', 'role', 'password']);
+        $this->reset(['editingId', 'name', 'email', 'role', 'phone', 'whatsapp', 'address', 'latitude', 'longitude', 'password']);
         $this->employmentType = EmploymentType::CONTRACT->value;
         $this->isActive = true;
         $this->resetErrorBag();
@@ -143,7 +177,7 @@ class DaftarTim extends Component
         return view('livewire.tim.daftar-tim', [
             'anggota' => $anggota,
             'daftarTipe' => EmploymentType::cases(),
-            'bisaKelola' => Gate::allows('manage-tim'),
+            'bisaKelola' => Gate::allows('manage-config'),
         ]);
     }
 }

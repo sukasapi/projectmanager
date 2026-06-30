@@ -1,0 +1,19 @@
+{
+    "name": "AnimTrack — Owlorix",
+    "short_name": "AnimTrack",
+    "description": "Project tracker produksi animasi untuk studio.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "background_color": "#16313f",
+    "theme_color": "#16313f",
+    "icons": [
+        {
+            "src": "/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}
