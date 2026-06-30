@@ -2,21 +2,28 @@
 
 namespace Database\Seeders;
 
+use App\Enums\AssetTask;
+use App\Enums\AssetType;
 use App\Enums\EmploymentType;
+use App\Enums\FaseProduksi;
 use App\Enums\ModeKerja;
 use App\Enums\ProjectStatus;
 use App\Enums\RevisionStatus;
-use App\Enums\ShotTaskType;
 use App\Enums\StatusKehadiran;
 use App\Enums\StatusLogbook;
 use App\Enums\TaskStatus;
 use App\Models\Adegan;
+use App\Models\Aset;
 use App\Models\Kehadiran;
 use App\Models\Klien;
 use App\Models\Logbook;
+use App\Models\Notifikasi;
+use App\Models\Perusahaan;
 use App\Models\Proyek;
 use App\Models\Shot;
+use App\Models\Tahap;
 use App\Models\TugasShot;
+use App\Models\TugasTahap;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -29,10 +36,33 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // --- Tahap produksi default (configurable, proses #7) ---
+        $this->call(TahapSeeder::class);
+
+        // --- Profil perusahaan/studio (singleton) ---
+        Perusahaan::create([
+            'name' => 'Owlorix Creative Lab',
+            'legal_name' => 'PT Owlorix Kreatif Nusantara',
+            'email' => 'studio@owlorix.test',
+            'phone' => '0274-555-0100',
+            'website' => 'https://owlorix.test',
+            'address' => 'Yogyakarta, Indonesia',
+            'tagline' => 'Animation Production Studio',
+        ]);
+
         // --- Artis terdaftar, satu per jenis kepegawaian ---
         $admin = User::create([
             'name' => 'Studio Admin',
             'email' => 'admin@animtrack.test',
+            'password' => Hash::make('password'),
+            'role' => 'Super Admin', // semua hak supervisor + konfigurasi aplikasi
+            'employment_type' => EmploymentType::CONTRACT->value,
+        ]);
+
+        // Supervisor produksi (tanpa akses konfigurasi aplikasi).
+        User::create([
+            'name' => 'Rina (Supervisor)',
+            'email' => 'supervisor@animtrack.test',
             'password' => Hash::make('password'),
             'role' => 'Supervisor',
             'employment_type' => EmploymentType::CONTRACT->value,
@@ -71,54 +101,57 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // --- Project/Episode contoh (dikaitkan dengan klien) ---
+        // Cerita 23 = episode LENGKAP & SELESAI (semua tahap APPROVED).
         $proyek = Proyek::create([
             'name' => 'Cerita 23',
-            'description' => 'Episode contoh untuk verifikasi pipeline AnimTrack.',
-            'status' => ProjectStatus::IN_PROGRESS->value,
+            'description' => 'Episode lengkap & selesai — semua tahap pra, produksi, dan pasca telah disetujui.',
+            'status' => ProjectStatus::COMPLETED->value,
             'client_id' => $klien->id,
+            'team_lead_id' => $ikmal->id,
+            'published_at' => now()->subDays(20),
+            'closed_at' => now()->subDays(1), // sudah closed
         ]);
 
-        // --- Scene 01 dengan beberapa shot ---
-        $scene = Adegan::create([
-            'project_id' => $proyek->id,
-            'scene_name' => 'Scene 01',
-        ]);
+        // Tahap Produksi level-SHOT dari SNAPSHOT episode ini (dibuat otomatis oleh ProyekObserver).
+        $tahapShot = $proyek->tahap()->aktif()->fase(FaseProduksi::PRODUKSI)->where('level', 'SHOT')->urut()->get();
 
-        $durations = [
-            'SC01_SH01' => 96,
-            'SC01_SH02' => 64,
-            'SC01_SH03' => 36,
-        ];
-
-        foreach ($durations as $code => $detik) {
-            $shot = Shot::create([
-                'scene_id' => $scene->id,
-                'shot_code' => $code,
-                'duration_seconds' => $detik,
-            ]);
-
-            // Buat 4 sub-pipeline kosong untuk tiap shot.
-            foreach (ShotTaskType::cases() as $tipe) {
-                TugasShot::create([
+        // Helper: buat shot + semua sub-task tahap APPROVED, dengan penugasan opsional per kode tahap.
+        $buatShotSelesai = function (Adegan $scene, string $code, int $detik, array $artisPerTahap = []) use ($tahapShot): Shot {
+            $shot = Shot::create(['scene_id' => $scene->id, 'shot_code' => $code, 'duration_seconds' => $detik]);
+            foreach ($tahapShot as $tahap) {
+                $tg = TugasShot::create([
                     'shot_id' => $shot->id,
-                    'task_type' => $tipe->value,
-                    'status' => TaskStatus::NOT_STARTED->value,
-                    'revision_status' => RevisionStatus::NONE->value,
+                    'tahap_id' => $tahap->id,
+                    'status' => TaskStatus::APPROVED->value,
+                    'revision_status' => RevisionStatus::OK->value,
+                    'preview_url' => 'https://example.test/preview/'.strtolower($code).'-'.$tahap->code.'.mp4',
+                    'post_date' => now(),
                 ]);
+                if (! empty($artisPerTahap[$tahap->code])) {
+                    $tg->artists()->sync($artisPerTahap[$tahap->code]);
+                }
             }
-        }
 
-        // Total durasi scene = SUM durasi shot (di Langkah 2 ini otomatis via Observer).
-        $scene->update(['total_duration' => array_sum($durations)]);
+            return $shot;
+        };
 
-        // --- Demonstrasi penugasan JAMAK: ANIMATE pada SC01_SH01 = Ikmal + Nando ---
+        // Scene 01 (196s) — penugasan jamak Animate SH01 = Ikmal + Nando.
+        $scene = Adegan::create(['project_id' => $proyek->id, 'scene_name' => 'Scene 01']);
+        $buatShotSelesai($scene, 'SC01_SH01', 96, ['animate' => [$ikmal->id, $nando->id], 'simulate' => [$sari->id]]);
+        $buatShotSelesai($scene, 'SC01_SH02', 64, ['animate' => [$ikmal->id], 'simulate' => [$nando->id]]);
+        $buatShotSelesai($scene, 'SC01_SH03', 36, ['animate' => [$nando->id]]);
+
+        // Scene 02 (200s).
+        $scene2 = Adegan::create(['project_id' => $proyek->id, 'scene_name' => 'Scene 02']);
+        $buatShotSelesai($scene2, 'SC02_SH01', 120, ['animate' => [$ikmal->id], 'simulate' => [$sari->id]]);
+        $buatShotSelesai($scene2, 'SC02_SH02', 80, ['animate' => [$nando->id]]);
+
+        // Aset (semua selesai).
+        $animate = $tahapShot->firstWhere('code', 'animate');
         $animateSh01 = TugasShot::query()
             ->whereHas('shot', fn ($q) => $q->where('shot_code', 'SC01_SH01'))
-            ->where('task_type', ShotTaskType::ANIMATE->value)
+            ->where('tahap_id', $animate->id)
             ->first();
-
-        $animateSh01->update(['status' => TaskStatus::IN_PROGRESS->value]);
-        $animateSh01->artists()->sync([$ikmal->id, $nando->id]);
 
         // --- Contoh kehadiran HARI INI (untuk dasbor Monitoring & Laporan) ---
         $tz = config('kehadiran.timezone');
@@ -158,7 +191,40 @@ class DatabaseSeeder extends Seeder
             'status' => StatusLogbook::DRAFT->value,
         ]);
 
-        $this->command->info('Seed selesai: 4 artis, 1 proyek (Cerita 23), 1 scene, 3 shot, 12 shot-task.');
+        // --- Aset Cerita 23 (semua selesai) ---
+        Aset::create(['project_id' => $proyek->id, 'type' => AssetType::CHARACTER->value, 'name' => 'Karakter Utama - Bima', 'task' => AssetTask::RIGGING->value, 'artist_id' => $ikmal->id, 'status' => TaskStatus::APPROVED->value]);
+        Aset::create(['project_id' => $proyek->id, 'type' => AssetType::ENVIRONMENT->value, 'name' => 'Desa Tepi Sungai', 'task' => AssetTask::TEXTURING->value, 'artist_id' => $sari->id, 'status' => TaskStatus::APPROVED->value]);
+        Aset::create(['project_id' => $proyek->id, 'type' => AssetType::PROPERTY->value, 'name' => 'Perahu Kayu', 'task' => AssetTask::MODELING->value, 'artist_id' => $nando->id, 'status' => TaskStatus::APPROVED->value]);
+
+        // --- Pra & Pasca Cerita 23: SEMUA tahap APPROVED (episode selesai) ---
+        $rotasi = [$ikmal->id, $nando->id, $sari->id];
+
+        foreach ($proyek->tahap()->aktif()->fase(FaseProduksi::PRA)->where('level', 'EPISODE')->urut()->get()->values() as $i => $t) {
+            TugasTahap::create([
+                'project_id' => $proyek->id, 'tahap_id' => $t->id, 'artist_id' => $rotasi[$i % 3],
+                'status' => TaskStatus::APPROVED->value,
+                'deskripsi' => $t->name.' telah diselesaikan dan disetujui.',
+                'file_url' => 'https://example.test/pra/'.$t->code.'.pdf',
+            ]);
+        }
+
+        foreach ($proyek->tahap()->aktif()->fase(FaseProduksi::PASCA)->where('level', 'EPISODE')->urut()->get()->values() as $i => $t) {
+            TugasTahap::create([
+                'project_id' => $proyek->id, 'tahap_id' => $t->id, 'artist_id' => $rotasi[$i % 3],
+                'status' => TaskStatus::APPROVED->value,
+                'deskripsi' => $t->name.' final & disetujui.',
+                'file_url' => 'https://example.test/pasca/'.$t->code.'.mov',
+            ]);
+        }
+
+        // --- Episode demo tambahan (Cerita 21 & 27, masing-masing 5 scene/31 shot) ---
+        $this->call(EpisodeDemoSeeder::class);
+
+        // Contoh notifikasi (mis. hasil publish episode).
+        Notifikasi::kirim($ikmal->id, 'Episode dipublish: Cerita 21', 'Anda ditugaskan pada episode ini.', '/', 'publish');
+        Notifikasi::kirim($nando->id, 'Episode dipublish: Cerita 27', 'Anda ditugaskan pada episode ini.', '/', 'publish');
+
+        $this->command->info('Seed selesai: 4 artis, 3 proyek (Cerita 23/21/27), shot + tugas Pra/Pasca.');
         $this->command->info('Total durasi Scene 01 = '.$scene->fresh()->total_duration.'s (harusnya 196s).');
         $this->command->info('Kehadiran hari ini: 3 baris (Ikmal hadir, Nando offsite, Sari terlambat) + 2 entri logbook.');
     }

@@ -60,23 +60,25 @@ class TransitionShotTaskStatus
     }
 
     /**
-     * Pastikan tahap sebelumnya (pada shot yang sama) sudah APPROVED.
+     * Pastikan tahap prasyarat (pada shot yang sama) sudah APPROVED.
+     * Dependensi kini berbasis data: kf_tahap.requires_tahap_id.
      */
     protected function assertPreviousStageApproved(TugasShot $task): void
     {
-        $previousType = $task->task_type->previous();
+        $task->loadMissing('tahap.prasyarat');
+        $prasyarat = $task->tahap?->prasyarat;
 
-        if ($previousType === null) {
-            return; // Tahap pertama (LAYOUT) tak punya prasyarat.
+        if ($prasyarat === null) {
+            return; // Tahap pertama (tanpa prasyarat) boleh langsung dimulai.
         }
 
         $previous = TugasShot::where('shot_id', $task->shot_id)
-            ->where('task_type', $previousType->value)
+            ->where('tahap_id', $prasyarat->id)
             ->first();
 
         if (! $previous || $previous->status !== TaskStatus::APPROVED) {
             throw new InvalidShotTaskTransition(
-                "Tahap \"{$previousType->label()}\" harus disetujui dulu sebelum memulai \"{$task->task_type->label()}\"."
+                "Tahap \"{$prasyarat->name}\" harus disetujui dulu sebelum memulai \"{$task->tahap->name}\"."
             );
         }
     }

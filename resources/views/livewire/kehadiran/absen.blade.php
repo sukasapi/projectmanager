@@ -95,8 +95,7 @@
         @elseif (! $kehadiran->clock_out)
             {{-- Sudah masuk, belum pulang --}}
             <div class="border-t border-slate-100 pt-4">
-                <button wire:click="clockOut" wire:loading.attr="disabled"
-                        wire:confirm="Akhiri jam kerja hari ini?"
+                <button x-on:click="$confirm(@js('Akhiri jam kerja hari ini?'), { confirmText: 'Clock-out' }).then(ok => ok && $wire.clockOut())" wire:loading.attr="disabled"
                         class="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-800 disabled:opacity-60">
                     <svg wire:loading wire:target="clockOut" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

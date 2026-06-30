@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    /*
+     | Google Gemini — bantuan AI untuk menulis deskripsi (PIPELINE.md §6).
+     | Isi GEMINI_API_KEY di .env untuk mengaktifkan; bila kosong, fitur AI tersembunyi.
+     | Aman cPanel (HTTPS biasa saat request, tanpa daemon).
+     */
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-2.0-flash'),
+        'timeout' => env('GEMINI_TIMEOUT', 20),
+    ],
+
 ];

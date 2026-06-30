@@ -51,7 +51,7 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-xs text-slate-500">
-                                    {{ $e->tugasShot?->shot?->shot_code ? $e->tugasShot->shot->shot_code.' · '.$e->tugasShot->task_type->label() : '—' }}
+                                    {{ $e->tugasShot?->shot?->shot_code ? $e->tugasShot->shot->shot_code.' · '.$e->tugasShot->tahap?->name : '—' }}
                                 </td>
                                 <td class="px-4 py-3">
                                     <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium {{ $e->status->color() }}">{{ $e->status->label() }}</span>
@@ -59,12 +59,12 @@
                                 <td class="px-4 py-3">
                                     <div class="flex items-center justify-center gap-1">
                                         @if ($e->status->dapatDiedit())
-                                            <button wire:click="submit({{ $e->id }})" wire:confirm="Kirim entri ini untuk direview? Setelah dikirim tidak bisa diubah."
+                                            <button x-on:click="$confirm(@js('Kirim entri ini untuk direview? Setelah dikirim tidak bisa diubah.'), { confirmText: 'Kirim', icon: 'info' }).then(ok => ok && $wire.submit({{ $e->id }}))"
                                                     class="rounded px-2 py-1 text-xs font-medium text-green-700 transition hover:bg-green-50" title="Kirim untuk review">Kirim</button>
-                                            <button wire:click="edit({{ $e->id }})" class="rounded p-1.5 text-slate-400 transition hover:bg-brand-50 hover:text-brand-700" title="Edit">
+                                            <button wire:click="edit({{ $e->id }})" class="inline-flex rounded-md bg-slate-100 p-1.5 text-slate-500 transition hover:bg-brand-100 hover:text-brand-700" title="Edit">
                                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                             </button>
-                                            <button wire:click="delete({{ $e->id }})" wire:confirm="Hapus entri logbook ini?" class="rounded p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600" title="Hapus">
+                                            <button x-on:click="$confirm(@js('Hapus entri logbook ini?'), { danger: true }).then(ok => ok && $wire.delete({{ $e->id }}))" class="inline-flex rounded-md bg-slate-100 p-1.5 text-red-500 transition hover:bg-red-100 hover:text-red-700" title="Hapus">
                                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.87 12.14A2 2 0 0116.14 21H7.86a2 2 0 01-1.99-1.86L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                             </button>
                                         @else
@@ -114,7 +114,7 @@
                         <select wire:model="shotTaskId" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
                             <option value="">— tidak terkait shot-task —</option>
                             @foreach ($tugasSaya as $t)
-                                <option value="{{ $t->id }}">{{ $t->shot?->shot_code }} · {{ $t->task_type->label() }}</option>
+                                <option value="{{ $t->id }}">{{ $t->shot?->shot_code }} · {{ $t->tahap?->name }}</option>
                             @endforeach
                         </select>
                     </div>

@@ -2,15 +2,19 @@
 
 namespace App\Actions;
 
+use App\Enums\FaseProduksi;
+use App\Enums\LevelTahap;
 use App\Enums\RevisionStatus;
-use App\Enums\ShotTaskType;
 use App\Enums\TaskStatus;
+use App\Models\Adegan;
 use App\Models\Shot;
+use App\Models\Tahap;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Membuat Shot baru sekaligus 4 sub-pipeline (Layout, Animate, Simulate, LRC)
- * dalam satu transaksi. Kalkulasi total_duration scene ditangani ShotObserver.
+ * Membuat Shot baru sekaligus sub-task untuk tiap tahap Produksi level-SHOT yang
+ * aktif (configurable — default Animate, Simulate). total_duration scene ditangani
+ * ShotObserver. Lihat PIPELINE.md.
  */
 class CreateShot
 {
@@ -22,9 +26,18 @@ class CreateShot
         return DB::transaction(function () use ($data) {
             $shot = Shot::create($data);
 
-            foreach (ShotTaskType::cases() as $type) {
+            // Tahap dari snapshot pipeline EPISODE shot ini (bukan template global).
+            $projectId = Adegan::whereKey($data['scene_id'])->value('project_id');
+            $tahapShot = Tahap::milikEpisode((int) $projectId)
+                ->aktif()
+                ->fase(FaseProduksi::PRODUKSI)
+                ->where('level', LevelTahap::SHOT->value)
+                ->urut()
+                ->get();
+
+            foreach ($tahapShot as $tahap) {
                 $shot->tugasShot()->create([
-                    'task_type' => $type->value,
+                    'tahap_id' => $tahap->id,
                     'status' => TaskStatus::NOT_STARTED->value,
                     'revision_status' => RevisionStatus::NONE->value,
                 ]);

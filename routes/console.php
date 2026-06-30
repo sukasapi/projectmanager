@@ -9,5 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Rekap kehadiran harian via cron `schedule:run` (cPanel-safe, tanpa daemon).
-// Jalan tiap hari pukul 18:00 WIB (setelah jam kerja berakhir) untuk menandai ALPHA.
-Schedule::command('kehadiran:rekap')->dailyAt('18:00')->timezone('Asia/Jakarta');
+// Jalan tiap malam 23:55 WIB: lengkapi clock-out tepat waktu + tandai ALPHA hari itu.
+Schedule::command('kehadiran:rekap')->dailyAt('23:55')->timezone('Asia/Jakarta');

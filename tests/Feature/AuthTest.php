@@ -23,11 +23,18 @@ class AuthTest extends TestCase
         $this->get('/login')->assertStatus(200)->assertSeeLivewire(Login::class);
     }
 
+    public function test_pengguna_terautentikasi_melihat_dashboard(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/')->assertStatus(200)->assertSee('ringkasan produksi');
+    }
+
     public function test_pengguna_terautentikasi_melihat_shot_matrix(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAs($user)->get('/')->assertStatus(200)->assertSee('Shot Pipeline Matrix');
+        $this->actingAs($user)->get('/shot-matrix')->assertStatus(200)->assertSee('Shot Pipeline Matrix');
     }
 
     public function test_login_berhasil_dengan_kredensial_benar(): void

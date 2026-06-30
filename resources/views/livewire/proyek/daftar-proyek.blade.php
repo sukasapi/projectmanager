@@ -5,13 +5,15 @@
             <h1 class="text-xl font-bold tracking-tight text-slate-900">Episode</h1>
             <p class="text-sm text-slate-500">Kelola Project/Episode produksi dan kaitkan dengan klien.</p>
         </div>
-        <button wire:click="create"
-                class="inline-flex items-center gap-1.5 rounded-lg bg-brand-700 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-800">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Tambah Episode
-        </button>
+        @if ($bisaKelola)
+            <button wire:click="create"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-brand-700 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-800">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Tambah Episode
+            </button>
+        @endif
     </div>
 
     {{-- Daftar episode --}}
@@ -26,8 +28,8 @@
                     <thead>
                         <tr class="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
                             <th class="px-4 py-2.5 text-left">Episode</th>
-                            <th class="px-4 py-2.5 text-left">Klien</th>
-                            <th class="px-4 py-2.5 text-left">Status</th>
+                            <th class="px-4 py-2.5 text-left">Klien / Team Lead</th>
+                            <th class="px-4 py-2.5 text-left">Lifecycle</th>
                             <th class="px-4 py-2.5 text-right">Adegan</th>
                             <th class="px-4 py-2.5 text-right">Total Durasi</th>
                             <th class="px-4 py-2.5 text-center">Aksi</th>
@@ -35,6 +37,12 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @foreach ($episodes as $ep)
+                            @php
+                                $kelola = $ep->dapatDikelola(auth()->user());
+                                $life = $ep->isClosed()
+                                    ? ['Closed', 'bg-slate-200 text-slate-600']
+                                    : ($ep->isPublished() ? ['Published', 'bg-green-100 text-green-700'] : ['Draft / Setup', 'bg-amber-100 text-amber-700']);
+                            @endphp
                             <tr wire:key="ep-{{ $ep->id }}" class="group transition hover:bg-slate-50">
                                 <td class="px-4 py-3">
                                     <div class="font-semibold text-slate-800">{{ $ep->name }}</div>
@@ -43,30 +51,47 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-slate-600">
-                                    {{ $ep->klien?->name ?? '—' }}
+                                    <div>{{ $ep->klien?->name ?? '—' }}</div>
+                                    <div class="text-xs text-slate-400">Lead: {{ $ep->teamLead?->name ?? '—' }}</div>
                                 </td>
                                 <td class="px-4 py-3">
-                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium {{ $ep->status->color() }}">
-                                        {{ $ep->status->label() }}
-                                    </span>
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium {{ $life[1] }}">{{ $life[0] }}</span>
+                                    @if ($ep->published_at)
+                                        <div class="mt-0.5 text-[11px] text-slate-400">{{ $ep->published_at->locale('id')->isoFormat('D MMM Y') }}</div>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 text-right tabular-nums text-slate-600">{{ $ep->adegan_count }}</td>
                                 <td class="px-4 py-3 text-right tabular-nums font-medium text-brand-700">{{ (int) $ep->total_durasi }}s</td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center justify-center gap-1">
-                                        <button wire:click="edit({{ $ep->id }})"
-                                                class="rounded p-1.5 text-slate-400 transition hover:bg-brand-50 hover:text-brand-700" title="Edit">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                            </svg>
-                                        </button>
-                                        <button wire:click="delete({{ $ep->id }})"
-                                                wire:confirm="Hapus episode &quot;{{ $ep->name }}&quot; beserta seluruh adegan, shot, aset, dan tugasnya?"
-                                                class="rounded p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600" title="Hapus">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.87 12.14A2 2 0 0116.14 21H7.86a2 2 0 01-1.99-1.86L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
+                                        @if ($kelola && $ep->isDraft())
+                                            <button x-on:click="$confirm(@js('Publish episode “'.$ep->name.'”? Semua artis yang ditugaskan akan diberi notifikasi.'), { confirmText: 'Publish', icon: 'info' }).then(ok => ok && $wire.publish({{ $ep->id }}))"
+                                                    class="rounded-md bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700">Publish</button>
+                                        @elseif ($kelola && $ep->isPublished())
+                                            <button x-on:click="$confirm(@js('Tandai episode “'.$ep->name.'” selesai (closed)?'), { confirmText: 'Selesaikan' }).then(ok => ok && $wire.tutup({{ $ep->id }}))"
+                                                    class="rounded-md bg-brand-700 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-800">Selesai</button>
+                                        @elseif ($ep->isClosed() && $bisaKelola)
+                                            <button x-on:click="$confirm(@js('Buka kembali episode “'.$ep->name.'”? Episode dapat diedit & dilanjutkan lagi.'), { confirmText: 'Buka Kembali', icon: 'info' }).then(ok => ok && $wire.bukaKembali({{ $ep->id }}))"
+                                                    class="rounded-md bg-amber-500 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-600">Buka Kembali</button>
+                                        @endif
+                                        <a href="{{ route('proyek.bible', $ep->id) }}" target="_blank"
+                                           class="inline-flex rounded-md bg-slate-100 p-1.5 text-slate-500 transition hover:bg-gold-100 hover:text-gold-600" title="Unduh Production Bible (PDF)">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                        </a>
+                                        @if ($bisaKelola)
+                                            <button wire:click="edit({{ $ep->id }})"
+                                                    class="inline-flex rounded-md bg-slate-100 p-1.5 text-slate-500 transition hover:bg-brand-100 hover:text-brand-700" title="Edit">
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                            </button>
+                                            <button x-on:click="$confirm(@js('Hapus episode “'.$ep->name.'” beserta seluruh adegan, shot, aset, dan tugasnya?'), { danger: true }).then(ok => ok && $wire.delete({{ $ep->id }}))"
+                                                    class="inline-flex rounded-md bg-slate-100 p-1.5 text-red-500 transition hover:bg-red-100 hover:text-red-700" title="Hapus">
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.87 12.14A2 2 0 0116.14 21H7.86a2 2 0 01-1.99-1.86L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -124,6 +149,17 @@
                                 @endforeach
                             </select>
                         </div>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Team Lead <span class="text-slate-400">(penanggung jawab episode)</span></label>
+                        <select wire:model="teamLeadId" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                            <option value="">— belum ditentukan —</option>
+                            @foreach ($daftarArtis as $a)
+                                <option value="{{ $a->id }}">{{ $a->name }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-[11px] text-slate-400">Team Lead dapat ikut setup, publish, approve, dan menutup episode ini.</p>
                     </div>
 
                     <div class="rounded-lg bg-slate-50 p-3">

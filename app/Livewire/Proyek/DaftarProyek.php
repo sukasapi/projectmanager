@@ -4,14 +4,17 @@ namespace App\Livewire\Proyek;
 
 use App\Enums\ProjectStatus;
 use App\Models\Klien;
+use App\Models\Notifikasi;
 use App\Models\Proyek;
+use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 /**
- * Daftar & kelola Episode (Project/Episode). Form buat/edit tergabung sebagai modal,
- * termasuk pengaitan ke Klien. Lihat UI.md §8.5–8.6.
+ * Daftar & kelola Episode. Buat/edit + tugaskan Team Lead (Supervisor), lalu Publish
+ * (notifikasi ke artis) & Selesai (close). Lihat WORKFLOW.md §2.
  */
 #[Layout('components.layouts.app')]
 class DaftarProyek extends Component
@@ -28,6 +31,8 @@ class DaftarProyek extends Component
 
     public ?int $clientId = null;
 
+    public ?int $teamLeadId = null;
+
     /** Tambah klien baru langsung dari form episode. */
     public string $newClientName = '';
 
@@ -36,14 +41,21 @@ class DaftarProyek extends Component
         $this->status = ProjectStatus::PLANNING->value;
     }
 
+    private function pastikanBolehKelola(): void
+    {
+        abort_unless(Gate::allows('manage-tim'), 403);
+    }
+
     public function create(): void
     {
+        $this->pastikanBolehKelola();
         $this->resetForm();
         $this->showForm = true;
     }
 
     public function edit(int $id): void
     {
+        $this->pastikanBolehKelola();
         $proyek = Proyek::findOrFail($id);
 
         $this->editingId = $proyek->id;
@@ -51,6 +63,7 @@ class DaftarProyek extends Component
         $this->description = $proyek->description ?? '';
         $this->status = $proyek->status->value;
         $this->clientId = $proyek->client_id;
+        $this->teamLeadId = $proyek->team_lead_id;
         $this->newClientName = '';
         $this->resetErrorBag();
         $this->showForm = true;
@@ -58,18 +71,21 @@ class DaftarProyek extends Component
 
     public function save(): void
     {
+        $this->pastikanBolehKelola();
+
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'status' => ['required', Rule::in(array_column(ProjectStatus::cases(), 'value'))],
             'clientId' => ['nullable', 'integer', Rule::exists('kf_klien', 'id')],
+            'teamLeadId' => ['nullable', 'integer', Rule::exists('kf_pengguna', 'id')],
             'newClientName' => ['nullable', 'string', 'max:255'],
         ], attributes: [
             'name' => 'nama episode',
+            'teamLeadId' => 'team lead',
             'newClientName' => 'nama klien baru',
         ]);
 
-        // Bila mengisi klien baru, buat dulu lalu pakai sebagai client_id.
         $clientId = $this->clientId;
         if (trim($this->newClientName) !== '') {
             $clientId = Klien::create(['name' => trim($this->newClientName)])->id;
@@ -82,6 +98,7 @@ class DaftarProyek extends Component
                 'description' => $validated['description'] ?: null,
                 'status' => $validated['status'],
                 'client_id' => $clientId,
+                'team_lead_id' => $validated['teamLeadId'] ?: null,
             ]
         );
 
@@ -90,8 +107,74 @@ class DaftarProyek extends Component
         $this->dispatch('episode-tersimpan');
     }
 
+    /** Publish episode: kunci fase setup & beri tahu semua artis yang ditugaskan. */
+    public function publish(int $id): void
+    {
+        $proyek = Proyek::findOrFail($id);
+        abort_unless($proyek->dapatDikelola(auth()->user()), 403);
+
+        if ($proyek->isPublished() || $proyek->isClosed()) {
+            return;
+        }
+
+        $proyek->update([
+            'published_at' => now(),
+            'status' => ProjectStatus::IN_PROGRESS->value,
+        ]);
+
+        Notifikasi::kirimBanyak(
+            $proyek->assignedUserIds(),
+            "Episode dipublish: {$proyek->name}",
+            'Anda ditugaskan pada episode ini. Silakan mulai mengerjakan tracker.',
+            route('shot-matrix'),
+            'publish',
+        );
+
+        $this->dispatch('episode-tersimpan');
+        $this->dispatch('toast', message: "Episode \"{$proyek->name}\" dipublish — notifikasi terkirim.");
+    }
+
+    /** Selesai/close episode. */
+    public function tutup(int $id): void
+    {
+        $proyek = Proyek::findOrFail($id);
+        abort_unless($proyek->dapatDikelola(auth()->user()), 403);
+
+        if (! $proyek->isPublished()) {
+            return;
+        }
+
+        $proyek->update([
+            'closed_at' => now(),
+            'status' => ProjectStatus::COMPLETED->value,
+        ]);
+
+        $this->dispatch('episode-tersimpan');
+        $this->dispatch('toast', message: "Episode \"{$proyek->name}\" ditandai selesai.");
+    }
+
+    /** Buka kembali episode yang sudah ditutup — hanya Super Admin / Supervisor. */
+    public function bukaKembali(int $id): void
+    {
+        $proyek = Proyek::findOrFail($id);
+        abort_unless($proyek->dapatDibukaKembali(auth()->user()), 403);
+
+        if (! $proyek->isClosed()) {
+            return;
+        }
+
+        $proyek->update([
+            'closed_at' => null,
+            'status' => ProjectStatus::IN_PROGRESS->value,
+        ]);
+
+        $this->dispatch('episode-tersimpan');
+        $this->dispatch('toast', message: "Episode \"{$proyek->name}\" dibuka kembali.");
+    }
+
     public function delete(int $id): void
     {
+        $this->pastikanBolehKelola();
         Proyek::whereKey($id)->first()?->delete();
     }
 
@@ -103,7 +186,7 @@ class DaftarProyek extends Component
 
     protected function resetForm(): void
     {
-        $this->reset(['editingId', 'name', 'description', 'clientId', 'newClientName']);
+        $this->reset(['editingId', 'name', 'description', 'clientId', 'teamLeadId', 'newClientName']);
         $this->status = ProjectStatus::PLANNING->value;
         $this->resetErrorBag();
     }
@@ -111,7 +194,7 @@ class DaftarProyek extends Component
     public function render()
     {
         $episodes = Proyek::query()
-            ->with('klien')
+            ->with(['klien', 'teamLead'])
             ->withCount('adegan')
             ->withSum('adegan as total_durasi', 'total_duration')
             ->orderByDesc('id')
@@ -121,6 +204,8 @@ class DaftarProyek extends Component
             'episodes' => $episodes,
             'daftarKlien' => Klien::orderBy('name')->get(['id', 'name']),
             'daftarStatus' => ProjectStatus::cases(),
+            'daftarArtis' => User::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'bisaKelola' => Gate::allows('manage-tim'),
         ]);
     }
 }

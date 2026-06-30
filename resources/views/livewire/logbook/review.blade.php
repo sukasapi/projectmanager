@@ -31,7 +31,7 @@
                                 {{ $e->jam_mulai->timezone($tz)->format('H:i') }}–{{ $e->jam_selesai->timezone($tz)->format('H:i') }} ·
                                 <span class="font-medium text-slate-600">{{ intdiv($e->durasi_menit, 60) }}j {{ $e->durasi_menit % 60 }}m</span>
                                 @if ($e->tugasShot?->shot)
-                                    · {{ $e->tugasShot->shot->shot_code }} / {{ $e->tugasShot->task_type->label() }}
+                                    · {{ $e->tugasShot->shot->shot_code }} / {{ $e->tugasShot->tahap?->name }}
                                 @endif
                             </p>
                             <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ $e->deskripsi }}</p>
@@ -46,7 +46,7 @@
                             <input type="text" wire:model="catatan.{{ $e->id }}" placeholder="Catatan review (opsional)"
                                    class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
                         </div>
-                        <button wire:click="tolak({{ $e->id }})" wire:confirm="Tolak entri logbook ini?"
+                        <button x-on:click="$confirm(@js('Tolak entri logbook ini?'), { danger: true }).then(ok => ok && $wire.tolak({{ $e->id }}))"
                                 class="rounded-lg bg-red-600 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-red-700">Tolak</button>
                         <button wire:click="setujui({{ $e->id }})"
                                 class="rounded-lg bg-green-600 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-green-700">Setujui</button>

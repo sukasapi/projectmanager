@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Enums\ModeKerja;
 use App\Enums\StatusKehadiran;
 use App\Models\Kehadiran;
+use App\Models\Perusahaan;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -65,10 +66,11 @@ class ClockIn
             return StatusKehadiran::HADIR;
         }
 
+        $perusahaan = Perusahaan::current();
         $batas = Carbon::parse(
-            $nowWib->toDateString().' '.config('kehadiran.jam_masuk'),
+            $nowWib->toDateString().' '.$perusahaan->jamMasuk(),
             config('kehadiran.timezone')
-        )->addMinutes((int) config('kehadiran.toleransi_menit'));
+        )->addMinutes($perusahaan->toleransiMenit());
 
         return $nowWib->greaterThan($batas)
             ? StatusKehadiran::TERLAMBAT

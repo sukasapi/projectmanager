@@ -3,27 +3,31 @@
 namespace App\Models;
 
 use App\Enums\RevisionStatus;
-use App\Enums\ShotTaskType;
 use App\Enums\TaskStatus;
+use App\Models\Concerns\PunyaVersi;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Sub-task per Shot (Layout/Animate/Simulate/LRC) dengan penugasan jamak.
+ * Sub-task per Shot pada satu tahap Produksi (level SHOT, mis. Animate/Simulate)
+ * dengan penugasan jamak. Tahap kini berbasis data (kf_tahap), bukan enum.
  */
 class TugasShot extends Model
 {
-    use HasFactory;
+    use HasFactory, PunyaVersi, SoftDeletes;
 
     protected $table = 'kf_tugas_shot';
 
     protected $fillable = [
         'shot_id',
-        'task_type',
+        'tahap_id',
         'status',
+        'start_date',
+        'deadline',
         'post_date',
         'preview_url',
         'revision_notes',
@@ -33,10 +37,11 @@ class TugasShot extends Model
     protected function casts(): array
     {
         return [
-            'task_type' => ShotTaskType::class,
             'status' => TaskStatus::class,
             'revision_status' => RevisionStatus::class,
             'post_date' => 'date',
+            'start_date' => 'date',
+            'deadline' => 'date',
         ];
     }
 
@@ -44,6 +49,12 @@ class TugasShot extends Model
     public function shot(): BelongsTo
     {
         return $this->belongsTo(Shot::class, 'shot_id');
+    }
+
+    /** Tahap produksi (configurable) untuk sub-task ini. @return BelongsTo<Tahap, $this> */
+    public function tahap(): BelongsTo
+    {
+        return $this->belongsTo(Tahap::class, 'tahap_id');
     }
 
     /**

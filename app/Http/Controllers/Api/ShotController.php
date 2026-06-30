@@ -23,7 +23,7 @@ class ShotController extends Controller
                 'scene_name' => $adegan->scene_name,
                 'total_duration' => $adegan->total_duration,
             ],
-            'shots' => $adegan->shot()->orderBy('shot_code')->get(),
+            'shots' => $adegan->shot()->orderByRaw('LENGTH(shot_code), shot_code')->get(),
         ]);
     }
 

@@ -79,16 +79,15 @@
                                 <td class="px-4 py-3">
                                     <div class="flex items-center justify-center gap-1">
                                         <a href="{{ route('tim.detail', $u->id) }}" wire:navigate
-                                           class="rounded p-1.5 text-slate-400 transition hover:bg-brand-50 hover:text-brand-700" title="Detail / beban kerja">
+                                           class="inline-flex rounded-md bg-slate-100 p-1.5 text-slate-500 transition hover:bg-brand-100 hover:text-brand-700" title="Detail / beban kerja">
                                             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                         </a>
                                         @if ($bisaKelola)
-                                            <button wire:click="edit({{ $u->id }})" class="rounded p-1.5 text-slate-400 transition hover:bg-brand-50 hover:text-brand-700" title="Edit">
+                                            <button wire:click="edit({{ $u->id }})" class="inline-flex rounded-md bg-slate-100 p-1.5 text-slate-500 transition hover:bg-brand-100 hover:text-brand-700" title="Edit">
                                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                             </button>
-                                            <button wire:click="toggleAktif({{ $u->id }})"
-                                                    wire:confirm="{{ $u->is_active ? 'Nonaktifkan' : 'Aktifkan kembali' }} {{ $u->name }}?"
-                                                    class="rounded p-1.5 text-slate-400 transition hover:bg-amber-50 hover:text-amber-700" title="{{ $u->is_active ? 'Nonaktifkan' : 'Aktifkan' }}">
+                                            <button x-on:click="$confirm(@js(($u->is_active ? 'Nonaktifkan ' : 'Aktifkan kembali ').$u->name.'?')).then(ok => ok && $wire.toggleAktif({{ $u->id }}))"
+                                                    class="inline-flex rounded-md bg-slate-100 p-1.5 text-amber-600 transition hover:bg-amber-100 hover:text-amber-700" title="{{ $u->is_active ? 'Nonaktifkan' : 'Aktifkan' }}">
                                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 11-12.728 0M12 3v9" /></svg>
                                             </button>
                                         @endif
@@ -121,7 +120,7 @@
                         <div>
                             <label class="mb-1 block text-sm font-medium text-slate-700">Peran/Jabatan</label>
                             <input type="text" wire:model="role" placeholder="Animator, Lighting, Supervisor…" list="peran-opsi" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                            <datalist id="peran-opsi"><option>Animator</option><option>Lighting</option><option>Modeler</option><option>Supervisor</option></datalist>
+                            <datalist id="peran-opsi"><option>Animator</option><option>Lighting</option><option>Modeler</option><option>Rigger</option><option>Supervisor</option><option>Super Admin</option></datalist>
                         </div>
                     </div>
                     <div>
@@ -144,6 +143,37 @@
                             @error('password') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
                     </div>
+                    {{-- Kontak --}}
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Telepon</label>
+                            <input type="text" wire:model="phone" placeholder="0812…" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('phone') border-red-400 @enderror">
+                            @error('phone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700">WhatsApp</label>
+                            <input type="text" wire:model="whatsapp" placeholder="62812…" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('whatsapp') border-red-400 @enderror">
+                            @error('whatsapp') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Alamat</label>
+                        <textarea wire:model="address" rows="2" placeholder="Alamat domisili" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Latitude <span class="text-slate-400">(opsional)</span></label>
+                            <input type="text" wire:model="latitude" placeholder="-7.7956" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('latitude') border-red-400 @enderror">
+                            @error('latitude') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Longitude <span class="text-slate-400">(opsional)</span></label>
+                            <input type="text" wire:model="longitude" placeholder="110.3695" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('longitude') border-red-400 @enderror">
+                            @error('longitude') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <p class="col-span-2 -mt-1 text-[11px] text-slate-400">Pemilihan titik di peta interaktif menyusul; untuk kini isi koordinat manual bila perlu.</p>
+                    </div>
+
                     <label class="flex items-center gap-2 text-sm text-slate-700">
                         <input type="checkbox" wire:model="isActive" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
                         Akun aktif
