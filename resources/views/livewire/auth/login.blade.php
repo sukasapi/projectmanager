@@ -1,58 +1,54 @@
 @php $perusahaan = \App\Models\Perusahaan::current(); @endphp
 <div class="flex min-h-screen">
     {{-- Panel brand (kiri) --}}
-    <div class="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-brand-900 p-12 text-white lg:flex">
+    <div class="relative hidden w-1/2 flex-col overflow-hidden bg-brand-900 text-white lg:flex">
         @if ($perusahaan->loginImageUrl())
-            <img src="{{ $perusahaan->loginImageUrl() }}" alt="" class="absolute inset-0 h-full w-full object-cover opacity-30">
-            <div class="absolute inset-0 bg-brand-900/70"></div>
+            <img src="{{ $perusahaan->loginImageUrl() }}" alt="" class="absolute inset-0 h-full w-full object-cover brightness-75">
+            <div class="absolute inset-0 bg-gradient-to-b from-brand-950/35 via-brand-950/25 to-brand-950/80"></div>
+            <div class="absolute inset-0 bg-gradient-to-r from-brand-950/65 via-brand-950/20 to-transparent"></div>
         @endif
         <div class="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-brand-500/30 blur-3xl"></div>
         <div class="absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-gold-400/20 blur-3xl"></div>
 
-        <div class="relative flex items-center gap-3">
-            @if ($perusahaan->logoUrl())
-                <img src="{{ $perusahaan->logoUrl() }}" alt="logo" class="h-10 w-10 rounded-lg object-cover">
-            @else
-                <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-gold-400 text-xl font-bold text-brand-900">◑</span>
-            @endif
-            <div class="leading-tight">
-                <span class="block text-xl font-semibold tracking-tight">{{ $perusahaan->appName() }}</span>
-                <span class="block text-xs text-brand-300">{{ $perusahaan->name }}</span>
+        <div class="relative flex min-h-screen w-full items-end justify-center overflow-hidden border-r border-white/10 text-left shadow-2xl"
+             style="padding: 2.5rem 2.5rem 6rem;">
+            <div class="relative w-full max-w-2xl rounded-2xl border border-white/25 shadow-2xl ring-1 ring-black/30"
+                 style="background-color: rgba(8, 18, 28, 0.78); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); padding: 2.25rem 2.75rem 2.5rem;">
+                <h1 class="max-w-lg text-3xl font-bold leading-tight text-white drop-shadow-lg xl:text-4xl">
+                    Kelola pipeline<br>produksi animasi<br>
+                    <span class="text-gold-300">dalam satu tempat.</span>
+                </h1>
+                <p class="mt-6 max-w-xl text-sm leading-6 text-white/95 xl:text-base xl:leading-7">
+                    Lacak shot, aset, dan revisi dari pra-produksi hingga mastering — terstruktur
+                    seperti pipeline studio nyata.
+                </p>
+                <ul class="mt-6 space-y-3 rounded-xl text-sm font-semibold text-white/95">
+                    <li class="flex items-center gap-2"><span class="text-gold-300">✓</span> Matriks shot gaya spreadsheet</li>
+                    <li class="flex items-center gap-2"><span class="text-gold-300">✓</span> Kalkulasi durasi otomatis</li>
+                    <li class="flex items-center gap-2"><span class="text-gold-300">✓</span> Review &amp; revisi berriwayat</li>
+                </ul>
             </div>
-        </div>
 
-        <div class="relative space-y-6">
-            <h1 class="text-4xl font-bold leading-tight">
-                Kelola pipeline<br>produksi animasi<br>
-                <span class="text-gold-300">dalam satu tempat.</span>
-            </h1>
-            <p class="max-w-md text-brand-200">
-                Lacak shot, aset, dan revisi dari pra-produksi hingga mastering — terstruktur
-                seperti pipeline studio nyata.
-            </p>
-            <ul class="space-y-2 text-sm text-brand-200">
-                <li class="flex items-center gap-2"><span class="text-gold-400">✓</span> Matriks shot gaya spreadsheet</li>
-                <li class="flex items-center gap-2"><span class="text-gold-400">✓</span> Kalkulasi durasi otomatis</li>
-                <li class="flex items-center gap-2"><span class="text-gold-400">✓</span> Review &amp; revisi berriwayat</li>
-            </ul>
+            <p class="absolute left-1/2 -translate-x-1/2 rounded-full bg-brand-950/70 px-3 py-1 text-xs text-white/80 backdrop-blur-[4px]" style="bottom: 1.75rem;">{{ $perusahaan->footer() }}</p>
         </div>
-
-        <p class="relative text-xs text-brand-400">{{ $perusahaan->footer() }}</p>
     </div>
 
     {{-- Form login (kanan) --}}
     <div class="flex w-full items-center justify-center bg-slate-100 p-6 lg:w-1/2">
         <div class="w-full max-w-md">
-            <div class="mb-8 flex items-center gap-2 lg:hidden">
-                @if ($perusahaan->logoUrl())
-                    <img src="{{ $perusahaan->logoUrl() }}" alt="logo" class="h-9 w-9 rounded-lg object-cover">
-                @else
-                    <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-gold-400 font-bold text-brand-900">◑</span>
-                @endif
-                <span class="text-lg font-semibold text-slate-900">{{ $perusahaan->appName() }}</span>
-            </div>
-
             <div class="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+                <div class="mb-8 flex flex-col items-center gap-3 text-center">
+                    @if ($perusahaan->logoUrl())
+                        <img src="{{ $perusahaan->logoUrl() }}" alt="logo" class="h-12 w-12 rounded-xl border border-slate-200 object-cover shadow-sm">
+                    @else
+                        <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-gold-400 text-xl font-bold text-brand-900 shadow-sm">◑</span>
+                    @endif
+                    <div class="leading-tight">
+                        <span class="block text-xl font-bold tracking-tight text-slate-900">{{ $perusahaan->appName() }}</span>
+                        <span class="mt-1 block text-sm text-slate-500">{{ $perusahaan->name }}</span>
+                    </div>
+                </div>
+
                 <h2 class="text-2xl font-bold text-slate-900">Selamat datang kembali</h2>
                 <p class="mt-1 text-sm text-slate-500">Masuk untuk melanjutkan ke dashboard produksi.</p>
 

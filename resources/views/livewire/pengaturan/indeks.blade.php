@@ -43,18 +43,18 @@
             <div x-data="{ show: false }" x-on:password-tersimpan.window="show = true; setTimeout(() => show = false, 2500)" x-show="show" x-cloak class="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">Kata sandi diperbarui.</div>
             <div>
                 <label class="mb-1 block text-sm font-medium text-slate-700">Kata sandi saat ini</label>
-                <input type="password" wire:model="currentPassword" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('currentPassword') border-red-400 @enderror">
+                <input type="password" wire:model="currentPassword" autocomplete="current-password" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('currentPassword') border-red-400 @enderror">
                 @error('currentPassword') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-700">Kata sandi baru</label>
-                    <input type="password" wire:model="newPassword" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('newPassword') border-red-400 @enderror">
+                    <input type="password" wire:model="newPassword" autocomplete="new-password" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('newPassword') border-red-400 @enderror">
                     @error('newPassword') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-700">Konfirmasi kata sandi</label>
-                    <input type="password" wire:model="newPassword_confirmation" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                    <input type="password" wire:model="newPassword_confirmation" autocomplete="new-password" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
                 </div>
             </div>
             <div class="flex justify-end border-t border-slate-100 pt-4">
