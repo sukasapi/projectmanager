@@ -54,6 +54,15 @@ class ReviewPanel extends Component
         $this->resetErrorBag();
         $this->tugasShotId = $tugasShotId;
         $task = $this->task();
+
+        // Anggota biasa hanya boleh membuka shot-task yang ditugaskan padanya;
+        // pengelola (Supervisor/Super Admin/Team Lead) boleh membuka semua.
+        if (! $this->bolehBuka($task)) {
+            $this->tugasShotId = null;
+
+            return;
+        }
+
         $this->previewUrl = $task?->preview_url ?? '';
         $this->startDate = $task?->start_date?->toDateString();
         $this->deadline = $task?->deadline?->toDateString();
@@ -61,6 +70,24 @@ class ReviewPanel extends Component
         $this->deskripsiShot = $task?->shot?->description ?? '';
         $this->catatan = '';
         $this->terbuka = true;
+    }
+
+    /** Boleh membuka panel: pengelola episode atau artis yang ditugaskan pada shot-task ini. */
+    private function bolehBuka(?TugasShot $task): bool
+    {
+        if (! $task) {
+            return false;
+        }
+
+        $u = auth()->user();
+        $projectId = $task->shot?->adegan?->project_id;
+        $proyek = $projectId ? Proyek::find($projectId) : null;
+
+        if ($u && ($u->isSupervisory() || $proyek?->team_lead_id === $u->id)) {
+            return true;
+        }
+
+        return $task->artists->contains($u?->id);
     }
 
     /** Simpan deskripsi shot (hanya pengelola). */
@@ -184,13 +211,18 @@ class ReviewPanel extends Component
 
     public function simpanPreview(): void
     {
+        $task = $this->task();
+
+        // Hanya pemilik (artis ditugaskan) atau pengelola yang boleh memperbarui kiriman.
+        // Pemilik tetap bisa memperbarui meski status REVIEW (menunggu ditinjau).
+        abort_unless($this->bolehBuka($task), 403);
+
         $this->validate([
             'previewUrl' => ['nullable', 'url', 'max:2048'],
             'startDate' => ['nullable', 'date'],
             'deadline' => ['nullable', 'date', 'after_or_equal:startDate'],
         ], attributes: ['startDate' => 'tanggal mulai']);
 
-        $task = $this->task();
         $task?->update([
             'preview_url' => $this->previewUrl ?: null,
             'post_date' => now(),
@@ -296,14 +328,37 @@ class ReviewPanel extends Component
         $this->dispatch('shot-tersimpan');
     }
 
+    /** Status prasyarat tahap (dependensi pipeline) untuk task aktif. */
+    private function prasyarat(): array
+    {
+        $task = $this->task();
+        if (! $task?->tahap?->requires_tahap_id) {
+            return ['ok' => true, 'nama' => null];
+        }
+
+        $task->loadMissing('tahap.prasyarat');
+        $pre = TugasShot::where('shot_id', $task->shot_id)
+            ->where('tahap_id', $task->tahap->requires_tahap_id)
+            ->first();
+
+        return [
+            'ok' => (bool) ($pre && $pre->status === TaskStatus::APPROVED),
+            'nama' => $task->tahap->prasyarat?->name ?? 'tahap sebelumnya',
+        ];
+    }
+
     public function render()
     {
+        $prasyarat = $this->prasyarat();
+
         return view('livewire.review-panel', [
             'task' => $this->task(),
             'peninjau' => $this->actor(),
             'bisaKelola' => $this->dapatKelola(),
             'bisaReview' => $this->dapatReview(),
             'bisaKerja' => $this->bisaKerja(),
+            'prereqOk' => $prasyarat['ok'],
+            'prereqNama' => $prasyarat['nama'],
             'aiAktif' => app(GeminiService::class)->aktif(),
             'daftarArtis' => User::where('is_active', true)->orderBy('name')->get(['id', 'name', 'role']),
         ]);

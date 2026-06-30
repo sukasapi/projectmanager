@@ -31,7 +31,7 @@ class TugasSaya extends Component
                 'label' => trim(($t->shot?->shot_code ?? 'Shot').' · '.($t->tahap?->name ?? '')),
                 'status' => $t->status,
                 'deadline' => $t->deadline,
-                'url' => route('shot-matrix'),
+                'url' => route('shot-matrix', ['episode' => $t->shot?->adegan?->project_id]),
             ]);
 
         // Tahap (Pra/Pasca) milik saya yang belum selesai.
@@ -46,7 +46,7 @@ class TugasSaya extends Component
                 'label' => $t->tahap?->name ?? 'Tahap',
                 'status' => $t->status,
                 'deadline' => $t->deadline,
-                'url' => $t->tahap?->phase === FaseProduksi::PASCA ? route('pasca-produksi') : route('pra-produksi'),
+                'url' => ($t->tahap?->phase === FaseProduksi::PASCA ? route('pasca-produksi') : route('pra-produksi')).'?episode='.$t->project_id,
             ]);
 
         $grup = $shot->concat($tahap)
