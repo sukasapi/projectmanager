@@ -41,7 +41,8 @@ class TugasLaporanTest extends TestCase
 
         Livewire::actingAs($artis)->test(TugasSaya::class)
             ->assertSee('Cerita Saya')
-            ->assertSee('SC01_SH01');
+            ->assertSee('SC01_SH01')
+            ->assertSee('episode='.$ep->id); // tombol Buka deep-link ke matriks episode
     }
 
     public function test_tugas_saya_abaikan_episode_draft_dan_yang_approved(): void

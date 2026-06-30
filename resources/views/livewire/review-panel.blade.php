@@ -167,7 +167,12 @@
                     {{-- Aksi transisi sesuai status & peran --}}
                     <div class="flex flex-wrap gap-2">
                         @if ($task->status === \App\Enums\TaskStatus::NOT_STARTED)
-                            @if ($bisaKerja)
+                            @if ($bisaKerja && ! $prereqOk)
+                                <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-500">
+                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                    Tahap “{{ $prereqNama }}” harus disetujui dulu
+                                </span>
+                            @elseif ($bisaKerja)
                                 <button wire:click="ubahStatus('IN_PROGRESS')"
                                         class="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
                                     Mulai Kerjakan

@@ -217,6 +217,140 @@ class LivewireMatrixTest extends TestCase
         $this->assertSame(TaskStatus::APPROVED, $task->fresh()->status);
     }
 
+    public function test_mulai_shot_inline_oleh_artis_ditugaskan(): void
+    {
+        $scene = $this->scene();
+        Proyek::whereKey($scene->project_id)->update(['published_at' => now()]);
+        $shot = app(CreateShot::class)->handle(['scene_id' => $scene->id, 'shot_code' => 'SC01_SH01', 'duration_seconds' => 30]);
+        $task = $this->tahapPertama($shot->id);
+        $artis = User::factory()->create(['role' => 'Animator']);
+        $task->artists()->attach($artis->id);
+
+        Livewire::actingAs($artis)->test(ShotMatrix::class)
+            ->set('proyekId', $scene->project_id)
+            ->call('mulaiShot', $task->id)
+            ->assertHasNoErrors();
+
+        $this->assertSame(TaskStatus::IN_PROGRESS, $task->fresh()->status);
+    }
+
+    public function test_tahap_dependen_terkunci_sebelum_prasyarat_disetujui(): void
+    {
+        $scene = $this->scene();
+        Proyek::whereKey($scene->project_id)->update(['published_at' => now()]);
+        $shot = app(CreateShot::class)->handle(['scene_id' => $scene->id, 'shot_code' => 'SC01_SH01', 'duration_seconds' => 30]);
+        $simulate = TugasShot::where('shot_id', $shot->id)->whereHas('tahap', fn ($q) => $q->where('code', 'simulate'))->first();
+        $artis = User::factory()->create(['role' => 'Animator']);
+        $simulate->artists()->attach($artis->id);
+
+        // Animate belum disetujui → Simulate tidak bisa dimulai.
+        Livewire::actingAs($artis)->test(ShotMatrix::class)
+            ->set('proyekId', $scene->project_id)
+            ->call('mulaiShot', $simulate->id);
+        $this->assertSame(TaskStatus::NOT_STARTED, $simulate->fresh()->status);
+
+        // Setelah Animate disetujui → Simulate bisa dimulai.
+        $this->tahapPertama($shot->id)->update(['status' => TaskStatus::APPROVED->value]);
+        Livewire::actingAs($artis)->test(ShotMatrix::class)
+            ->set('proyekId', $scene->project_id)
+            ->call('mulaiShot', $simulate->id);
+        $this->assertSame(TaskStatus::IN_PROGRESS, $simulate->fresh()->status);
+    }
+
+    public function test_mulai_shot_ditolak_untuk_yang_bukan_ditugaskan(): void
+    {
+        $scene = $this->scene();
+        Proyek::whereKey($scene->project_id)->update(['published_at' => now()]);
+        $shot = app(CreateShot::class)->handle(['scene_id' => $scene->id, 'shot_code' => 'SC01_SH01', 'duration_seconds' => 30]);
+        $task = $this->tahapPertama($shot->id);
+        $orang = User::factory()->create(['role' => 'Animator']);
+
+        Livewire::actingAs($orang)->test(ShotMatrix::class)
+            ->set('proyekId', $scene->project_id)
+            ->call('mulaiShot', $task->id)
+            ->assertForbidden();
+
+        $this->assertSame(TaskStatus::NOT_STARTED, $task->fresh()->status);
+    }
+
+    public function test_anggota_biasa_hanya_bisa_membuka_shot_yang_diassign(): void
+    {
+        $scene = $this->scene();
+        $shot = app(CreateShot::class)->handle(['scene_id' => $scene->id, 'shot_code' => 'SC01_SH01', 'duration_seconds' => 30]);
+        $task = $this->tahapPertama($shot->id);
+        $artis = User::factory()->create(['role' => 'Animator']);
+
+        // Belum ditugaskan → panel tidak terbuka.
+        Livewire::actingAs($artis)->test(ReviewPanel::class)
+            ->call('buka', $task->id)
+            ->assertSet('terbuka', false);
+
+        // Setelah ditugaskan → boleh membuka.
+        $task->artists()->attach($artis->id);
+        Livewire::actingAs($artis)->test(ReviewPanel::class)
+            ->call('buka', $task->id)
+            ->assertSet('terbuka', true);
+    }
+
+    public function test_pemilik_bisa_membuka_dan_edit_saat_menunggu_review(): void
+    {
+        $scene = $this->scene();
+        $shot = app(CreateShot::class)->handle(['scene_id' => $scene->id, 'shot_code' => 'SC01_SH01', 'duration_seconds' => 30]);
+        $task = $this->tahapPertama($shot->id);
+        $task->update(['status' => TaskStatus::REVIEW->value]);
+        $artis = User::factory()->create(['role' => 'Animator']);
+        $task->artists()->attach($artis->id);
+
+        Livewire::actingAs($artis)->test(ReviewPanel::class)
+            ->call('buka', $task->id)
+            ->assertSet('terbuka', true)
+            ->set('previewUrl', 'https://drive.google.com/file/d/REV/view')
+            ->set('versiCatatan', 'perbaikan saat menunggu review')
+            ->call('simpanPreview')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('kf_versi_kiriman', ['subjek_id' => $task->id, 'catatan' => 'perbaikan saat menunggu review']);
+        $this->assertSame(TaskStatus::REVIEW, $task->fresh()->status); // edit tidak mengubah status
+    }
+
+    public function test_non_pemilik_tidak_bisa_edit_preview(): void
+    {
+        $scene = $this->scene();
+        $shot = app(CreateShot::class)->handle(['scene_id' => $scene->id, 'shot_code' => 'SC01_SH01', 'duration_seconds' => 30]);
+        $task = $this->tahapPertama($shot->id);
+        $orang = User::factory()->create(['role' => 'Animator']);
+
+        Livewire::actingAs($orang)->test(ReviewPanel::class)
+            ->set('tugasShotId', $task->id)
+            ->set('previewUrl', 'https://drive.google.com/file/d/X/view')
+            ->call('simpanPreview')
+            ->assertForbidden();
+    }
+
+    public function test_supervisor_bisa_membuka_shot_apa_pun(): void
+    {
+        $scene = $this->scene();
+        $shot = app(CreateShot::class)->handle(['scene_id' => $scene->id, 'shot_code' => 'SC01_SH01', 'duration_seconds' => 30]);
+        $task = $this->tahapPertama($shot->id);
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+
+        Livewire::actingAs($sup)->test(ReviewPanel::class)
+            ->call('buka', $task->id)
+            ->assertSet('terbuka', true);
+    }
+
+    public function test_deep_link_episode_membuka_matrix_detail_langsung(): void
+    {
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+        $scene = $this->scene();
+        app(CreateShot::class)->handle(['scene_id' => $scene->id, 'shot_code' => 'SC01_SH01', 'duration_seconds' => 30]);
+
+        // ?episode=ID → langsung tampil matriks (Scene 01) bukan kartu pemilih.
+        $this->actingAs($sup)->get('/shot-matrix?episode='.$scene->project_id)
+            ->assertOk()
+            ->assertSee('Scene 01');
+    }
+
     public function test_assign_massal_ke_semua_shot_pada_tahap(): void
     {
         $scene = $this->scene();

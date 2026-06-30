@@ -54,6 +54,15 @@ abstract class TrackerTahap extends Component
     /** Fase produksi yang dilacak komponen ini. */
     abstract protected function fase(): FaseProduksi;
 
+    public function mount(): void
+    {
+        // Deep-link opsional: /pra-produksi?episode=ID (atau /pasca-produksi) membuka tracker episode itu.
+        $episode = (int) request()->integer('episode');
+        if ($episode && $this->bolehAkses($episode)) {
+            $this->proyekId = $episode;
+        }
+    }
+
     private function bolehAkses(int $proyekId): bool
     {
         return Gate::allows('manage-tim')

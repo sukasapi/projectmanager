@@ -3,8 +3,11 @@
 namespace App\Livewire;
 
 use App\Actions\CreateShot;
+use App\Actions\TransitionShotTaskStatus;
 use App\Enums\FaseProduksi;
 use App\Enums\LevelTahap;
+use App\Enums\TaskStatus;
+use App\Exceptions\InvalidShotTaskTransition;
 use App\Models\Adegan;
 use App\Models\Proyek;
 use App\Models\Shot;
@@ -49,7 +52,11 @@ class ShotMatrix extends Component
 
     public function mount(): void
     {
-        // Tidak auto-pilih: tampilkan dulu pemilih episode (kartu portofolio).
+        // Deep-link opsional: /shot-matrix?episode=ID langsung membuka matriks episode itu.
+        $episode = (int) request()->integer('episode');
+        if ($episode && $this->bolehAkses($episode)) {
+            $this->proyekId = $episode;
+        }
     }
 
     /** Supervisor melihat semua episode; lainnya hanya yang ditugaskan padanya. */
@@ -267,6 +274,34 @@ class ShotMatrix extends Component
         $this->dispatch('buka-review', tugasShotId: $tugasShotId);
     }
 
+    /**
+     * Aksi cepat "Mulai" langsung dari sel matriks (tanpa membuka panel).
+     * Hanya artis yang ditugaskan atau reviewer, & episode sudah dipublish.
+     */
+    public function mulaiShot(int $tugasShotId, TransitionShotTaskStatus $transition): void
+    {
+        $task = TugasShot::with(['shot.adegan.proyek', 'artists'])->find($tugasShotId);
+        $proyek = $task?->shot?->adegan?->proyek;
+
+        $bisa = $task && $proyek && $proyek->isPublished()
+            && ($task->artists->contains(auth()->id()) || $proyek->dapatReview(auth()->user()));
+        abort_unless($bisa, 403);
+
+        if ($task->status === TaskStatus::NOT_STARTED) {
+            try {
+                $transition->handle($task, TaskStatus::IN_PROGRESS, auth()->user(), null);
+                $this->dispatch('toast', message: "Mulai mengerjakan {$task->shot?->shot_code}.");
+            } catch (InvalidShotTaskTransition $e) {
+                // Mis. tahap prasyarat belum disetujui.
+                $this->dispatch('toast', message: $e->getMessage(), icon: 'error');
+
+                return;
+            }
+        }
+
+        $this->dispatch('shot-tersimpan');
+    }
+
     public function render()
     {
         $supervisor = Gate::allows('manage-tim');
@@ -314,6 +349,12 @@ class ShotMatrix extends Component
                 ? Adegan::where('project_id', $this->proyekId)->orderByRaw('LENGTH(scene_name), scene_name')->get(['id', 'scene_name'])
                 : collect(),
             'daftarArtis' => User::where('is_active', true)->orderBy('name')->get(['id', 'name', 'role']),
+            // Pengelola episode (Supervisor/Super Admin atau Team Lead) boleh membuka semua sel;
+            // anggota biasa hanya sel (shot-task) yang ditugaskan padanya.
+            'kelolaEpisode' => $proyek ? ($supervisor || $proyek->team_lead_id === auth()->id()) : false,
+            'bisaReviewEpisode' => $proyek ? $proyek->dapatReview(auth()->user()) : false,
+            'published' => $proyek ? $proyek->isPublished() : false,
+            'uid' => auth()->id(),
         ]);
     }
 }

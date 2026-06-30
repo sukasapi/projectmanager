@@ -146,6 +146,12 @@
             @if ($dapatKelola) Klik <span class="font-medium text-slate-700">Tambah Scene</span> untuk memulai. @endif
         </div>
     @else
+        {{-- Legenda --}}
+        <div class="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
+            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded ring-2 ring-brand-400"></span> Sel bertanda <span class="rounded bg-brand-600 px-1 text-[10px] font-bold text-white">Anda</span> = tugas Anda</span>
+            <span>Tombol: <span class="font-semibold text-blue-600">Mulai</span> → <span class="font-semibold text-amber-600">Ajukan Review</span> → <span class="font-semibold text-green-600">Tinjau</span> (oleh supervisor/team lead)</span>
+        </div>
+
         {{-- Kartu matriks --}}
         <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="overflow-x-auto">
@@ -180,20 +186,70 @@
                                     <td class="whitespace-nowrap px-4 py-2 text-right tabular-nums text-slate-500">{{ $shot->duration_seconds }}s</td>
 
                                     @foreach ($tahapKolom as $tahap)
-                                        @php $tugas = $shot->tugasShot->first(fn ($t) => $t->tahap_id === $tahap->id); @endphp
-                                        <td class="border-l border-slate-100/60 px-3 py-2.5 align-top">
-                                            @if ($tugas)
-                                                <button type="button" wire:click="review({{ $tugas->id }})"
-                                                        class="flex w-full flex-col items-start gap-1 rounded-md p-1 text-left transition hover:bg-brand-50">
-                                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium {{ $tugas->status->color() }}">
-                                                        {{ $tugas->status->label() }}
-                                                    </span>
-                                                    @if ($tugas->artists->isNotEmpty())
-                                                        <span class="text-[11px] text-slate-500">{{ $tugas->artists->pluck('name')->join(', ') }}</span>
-                                                    @endif
-                                                </button>
-                                            @else
+                                        @php
+                                            $tugas = $shot->tugasShot->first(fn ($t) => $t->tahap_id === $tahap->id);
+                                            $milik = $tugas && $tugas->artists->contains($uid);
+                                            $bisaBuka = $tugas && ($kelolaEpisode || $milik);
+                                            $st = $tugas?->status;
+                                            $btn = 'w-full rounded-md px-2 py-1 text-[11px] font-semibold transition';
+                                            // Dependensi pipeline: tahap ini butuh prasyarat (tahap sebelumnya) APPROVED dulu.
+                                            $prereqOk = true;
+                                            $prereqNama = null;
+                                            if ($tugas && $tahap->requires_tahap_id) {
+                                                $pre = $shot->tugasShot->first(fn ($t) => $t->tahap_id === $tahap->requires_tahap_id);
+                                                $prereqOk = $pre && $pre->status === \App\Enums\TaskStatus::APPROVED;
+                                                $prereqNama = optional($tahapKolom->firstWhere('id', $tahap->requires_tahap_id))->name ?? 'tahap sebelumnya';
+                                            }
+                                        @endphp
+                                        <td class="border-l border-slate-100/60 px-2 py-2 align-top">
+                                            @if (! $tugas)
                                                 <span class="text-slate-300">—</span>
+                                            @else
+                                                <div @class([
+                                                    'rounded-lg p-2',
+                                                    'ring-2 ring-brand-400 bg-brand-50/60' => $milik,
+                                                    'bg-slate-50/40' => ! $milik && $bisaBuka,
+                                                ])>
+                                                    <div class="mb-1 flex flex-wrap items-center gap-1">
+                                                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium {{ $st->color() }}">{{ $st->label() }}</span>
+                                                        @if ($milik)
+                                                            <span class="inline-flex items-center rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">Anda</span>
+                                                        @endif
+                                                    </div>
+
+                                                    @if ($tugas->artists->isNotEmpty())
+                                                        <p class="mb-1.5 truncate text-[11px] {{ $milik ? 'font-semibold text-brand-700' : 'text-slate-500' }}" title="{{ $tugas->artists->pluck('name')->join(', ') }}">{{ $tugas->artists->pluck('name')->join(', ') }}</p>
+                                                    @else
+                                                        <p class="mb-1.5 text-[11px] italic text-slate-300">belum ada artis</p>
+                                                    @endif
+
+                                                    @if ($milik && ! $prereqOk && $st === \App\Enums\TaskStatus::NOT_STARTED)
+                                                        <span class="flex w-full items-center justify-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-400" title="Selesaikan & setujui {{ $prereqNama }} dulu">
+                                                            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                            Menunggu {{ $prereqNama }}
+                                                        </span>
+                                                    @elseif ($milik && $published && $st === \App\Enums\TaskStatus::NOT_STARTED)
+                                                        <button wire:click="mulaiShot({{ $tugas->id }})" class="{{ $btn }} bg-blue-600 text-white hover:bg-blue-700">▶ Mulai</button>
+                                                    @elseif ($milik && $st === \App\Enums\TaskStatus::IN_PROGRESS)
+                                                        <button wire:click="review({{ $tugas->id }})" class="{{ $btn }} bg-amber-500 text-white hover:bg-amber-600">⤴ Ajukan Review</button>
+                                                    @elseif ($bisaReviewEpisode && $st === \App\Enums\TaskStatus::REVIEW)
+                                                        <button wire:click="review({{ $tugas->id }})" class="{{ $btn }} bg-green-600 text-white hover:bg-green-700">Tinjau</button>
+                                                    @elseif ($milik && $st === \App\Enums\TaskStatus::REVIEW)
+                                                        <button wire:click="review({{ $tugas->id }})" title="Buka untuk lihat / perbarui kiriman selagi menunggu ditinjau"
+                                                                class="{{ $btn }} flex items-center justify-center gap-1 border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100">
+                                                            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                            Menunggu review
+                                                        </button>
+                                                    @elseif ($st === \App\Enums\TaskStatus::APPROVED)
+                                                        @if ($bisaBuka)
+                                                            <button wire:click="review({{ $tugas->id }})" class="{{ $btn }} border border-green-200 text-green-700 hover:bg-green-50">✓ Lihat</button>
+                                                        @else
+                                                            <span class="block text-center text-[11px] font-semibold text-green-600">✓ Disetujui</span>
+                                                        @endif
+                                                    @elseif ($bisaBuka)
+                                                        <button wire:click="review({{ $tugas->id }})" class="{{ $btn }} border border-slate-200 text-slate-600 hover:bg-slate-50">Buka</button>
+                                                    @endif
+                                                </div>
                                             @endif
                                         </td>
                                     @endforeach
