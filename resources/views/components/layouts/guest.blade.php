@@ -7,6 +7,8 @@
     <title>{{ $title ?? 'Masuk' }} · AnimTrack</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#16313f">
+    <link rel="icon" href="/favicon2.ico?v=2" type="image/x-icon">
+    <link rel="shortcut icon" href="/favicon2.ico?v=2" type="image/x-icon">
     <link rel="apple-touch-icon" href="/icon.svg">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">

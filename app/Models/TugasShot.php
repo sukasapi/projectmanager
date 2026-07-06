@@ -28,6 +28,7 @@ class TugasShot extends Model
         'status',
         'start_date',
         'deadline',
+        'estimasi_hari',
         'post_date',
         'preview_url',
         'revision_notes',
@@ -42,6 +43,7 @@ class TugasShot extends Model
             'post_date' => 'date',
             'start_date' => 'date',
             'deadline' => 'date',
+            'estimasi_hari' => 'integer',
         ];
     }
 
@@ -76,5 +78,20 @@ class TugasShot extends Model
     public function revisi(): HasMany
     {
         return $this->hasMany(RevisiShot::class, 'shot_task_id')->latest();
+    }
+
+    /** Catatan review terstruktur (Tier C2). @return HasMany<CatatanReview, $this> */
+    public function catatanReview(): HasMany
+    {
+        return $this->hasMany(CatatanReview::class, 'shot_task_id')->latest();
+    }
+
+    /** Jumlah retake = berapa kali dikembalikan dari REVIEW ke IN_PROGRESS. */
+    public function jumlahRetake(): int
+    {
+        return $this->revisi()
+            ->where('status_from', TaskStatus::REVIEW->value)
+            ->where('status_to', TaskStatus::IN_PROGRESS->value)
+            ->count();
     }
 }

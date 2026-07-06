@@ -18,11 +18,12 @@ class TimTest extends TestCase
         return User::factory()->create(['role' => 'Super Admin']);
     }
 
-    public function test_master_tim_hanya_untuk_super_admin(): void
+    public function test_akses_tim_untuk_pemantauan(): void
     {
-        // Animator & Supervisor biasa tidak boleh membuka master Tim.
+        // Artis biasa tidak boleh; Supervisor, Team Lead, dan Super Admin boleh (view-tim).
         $this->actingAs(User::factory()->create(['role' => 'Animator']))->get('/tim')->assertForbidden();
-        $this->actingAs(User::factory()->create(['role' => 'Supervisor']))->get('/tim')->assertForbidden();
+        $this->actingAs(User::factory()->create(['role' => 'Supervisor']))->get('/tim')->assertOk();
+        $this->actingAs(User::factory()->create(['role' => 'Team Lead']))->get('/tim')->assertOk();
         $this->actingAs($this->admin())->get('/tim')->assertOk();
     }
 

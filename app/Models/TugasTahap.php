@@ -29,6 +29,7 @@ class TugasTahap extends Model
         'file_url',
         'start_date',
         'deadline',
+        'estimasi_hari',
     ];
 
     protected function casts(): array
@@ -37,6 +38,7 @@ class TugasTahap extends Model
             'status' => TaskStatus::class,
             'start_date' => 'date',
             'deadline' => 'date',
+            'estimasi_hari' => 'integer',
         ];
     }
 

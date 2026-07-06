@@ -5,10 +5,12 @@ namespace App\Livewire\Pengaturan;
 use App\Models\Perusahaan;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Throwable;
 
 /**
  * Pengaturan: akun pribadi (nama/email/kata sandi) untuk semua pengguna, info
@@ -60,6 +62,25 @@ class Indeks extends Component
 
     public $loginFile = null;
 
+    // --- SMTP (Super Admin) ---
+    public string $smtp_host = '';
+
+    public ?int $smtp_port = null;
+
+    public string $smtp_username = '';
+
+    public string $smtp_password = ''; // kosong = tetap
+
+    public string $smtp_encryption = '';
+
+    public string $smtp_from_address = '';
+
+    public string $smtp_from_name = '';
+
+    public string $ujiEmail = '';
+
+    public ?string $ujiHasil = null;
+
     public function mount(): void
     {
         $this->name = auth()->user()->name;
@@ -79,6 +100,89 @@ class Indeks extends Component
             $this->comp_toleransi = $p->toleransiMenit();
             $this->comp_app_name = $p->app_name ?? '';
             $this->comp_footer = $p->footer_text ?? '';
+
+            // SMTP (password sengaja tidak dimuat demi keamanan; kosongkan = tetap).
+            $this->smtp_host = $p->smtp_host ?? '';
+            $this->smtp_port = $p->smtp_port;
+            $this->smtp_username = $p->smtp_username ?? '';
+            $this->smtp_encryption = $p->smtp_encryption ?? '';
+            $this->smtp_from_address = $p->smtp_from_address ?? '';
+            $this->smtp_from_name = $p->smtp_from_name ?? '';
+            $this->ujiEmail = auth()->user()->email;
+        }
+    }
+
+    /** Simpan konfigurasi SMTP (password hanya diperbarui bila diisi). */
+    public function simpanSmtp(): void
+    {
+        abort_unless(Gate::allows('manage-config'), 403);
+
+        $v = $this->validate([
+            'smtp_host' => ['nullable', 'string', 'max:255'],
+            'smtp_port' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'smtp_username' => ['nullable', 'string', 'max:255'],
+            'smtp_password' => ['nullable', 'string', 'max:255'],
+            'smtp_encryption' => ['nullable', Rule::in(['tls', 'ssl'])],
+            'smtp_from_address' => ['nullable', 'email', 'max:255'],
+            'smtp_from_name' => ['nullable', 'string', 'max:255'],
+        ], attributes: ['smtp_host' => 'host SMTP', 'smtp_from_address' => 'email pengirim']);
+
+        $data = [
+            'smtp_host' => $v['smtp_host'] ?: null,
+            'smtp_port' => $v['smtp_port'] ?: null,
+            'smtp_username' => $v['smtp_username'] ?: null,
+            'smtp_encryption' => $v['smtp_encryption'] ?: null,
+            'smtp_from_address' => $v['smtp_from_address'] ?: null,
+            'smtp_from_name' => $v['smtp_from_name'] ?: null,
+        ];
+
+        // Password: perbarui hanya bila diisi; bila host dikosongkan (SMTP dimatikan), bersihkan password.
+        if (! $v['smtp_host']) {
+            $data['smtp_password'] = null;
+        } elseif ($this->smtp_password !== '') {
+            $data['smtp_password'] = $this->smtp_password;
+        }
+
+        Perusahaan::current()->update($data);
+
+        $this->smtp_password = '';
+        $this->dispatch('smtp-tersimpan');
+        $this->dispatch('toast', message: 'Konfigurasi SMTP disimpan.');
+    }
+
+    /** Kirim email uji memakai nilai SMTP di form (password dari form bila diisi, else tersimpan). */
+    public function kirimUji(): void
+    {
+        abort_unless(Gate::allows('manage-config'), 403);
+        $this->ujiHasil = null;
+
+        $this->validate([
+            'ujiEmail' => ['required', 'email'],
+            'smtp_host' => ['required', 'string'],
+        ], attributes: ['ujiEmail' => 'email tujuan uji', 'smtp_host' => 'host SMTP']);
+
+        $pw = $this->smtp_password !== '' ? $this->smtp_password : Perusahaan::current()->smtp_password;
+
+        config([
+            'mail.default' => 'smtp',
+            'mail.mailers.smtp.host' => $this->smtp_host,
+            'mail.mailers.smtp.port' => (int) ($this->smtp_port ?: 587),
+            'mail.mailers.smtp.username' => $this->smtp_username ?: null,
+            'mail.mailers.smtp.password' => $pw ?: null,
+            'mail.mailers.smtp.encryption' => $this->smtp_encryption ?: null,
+        ]);
+        if ($this->smtp_from_address) {
+            config(['mail.from.address' => $this->smtp_from_address, 'mail.from.name' => $this->smtp_from_name ?: Perusahaan::current()->appName()]);
+        }
+
+        try {
+            $app = Perusahaan::current()->appName();
+            Mail::raw("Email uji dari {$app}. Konfigurasi SMTP Anda berfungsi.", fn ($m) => $m->to($this->ujiEmail)->subject("Uji SMTP — {$app}"));
+            $this->ujiHasil = 'ok';
+            $this->dispatch('toast', message: "Email uji terkirim ke {$this->ujiEmail}.");
+        } catch (Throwable $e) {
+            $this->ujiHasil = 'gagal';
+            $this->addError('ujiEmail', 'Gagal mengirim: '.$e->getMessage());
         }
     }
 

@@ -34,10 +34,18 @@ class ClockIn
             ]);
         }
 
-        $kehadiran = Kehadiran::firstOrNew([
+        // Sertakan baris yang mungkin ter-soft-delete agar tak bentrok unique(user_id,tanggal).
+        $kehadiran = Kehadiran::withTrashed()->firstOrNew([
             'user_id' => $user->id,
             'tanggal' => $tanggal,
         ]);
+
+        // Baris lama yang sudah dihapus → pakai ulang slotnya sebagai clock-in baru.
+        if ($kehadiran->trashed()) {
+            $kehadiran->deleted_at = null;
+            $kehadiran->clock_in = null;
+            $kehadiran->clock_out = null;
+        }
 
         if ($kehadiran->clock_in !== null) {
             throw ValidationException::withMessages([

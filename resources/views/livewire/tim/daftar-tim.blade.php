@@ -44,7 +44,7 @@
                     <thead>
                         <tr class="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
                             <th class="px-4 py-2.5 text-left">Artis</th>
-                            <th class="px-4 py-2.5 text-left">Peran</th>
+                            <th class="px-4 py-2.5 text-left">Peran / Jabatan</th>
                             <th class="px-4 py-2.5 text-left">Kepegawaian</th>
                             <th class="px-4 py-2.5 text-right">Tugas aktif</th>
                             <th class="px-4 py-2.5 text-center">Status</th>
@@ -64,7 +64,10 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-4 py-3 text-slate-600">{{ $u->role ?? '—' }}</td>
+                                <td class="px-4 py-3">
+                                    <div class="font-medium text-slate-700">{{ $u->role ?? '—' }}</div>
+                                    @if ($u->jabatan)<div class="text-xs text-slate-400">{{ $u->jabatan }}</div>@endif
+                                </td>
                                 <td class="px-4 py-3">
                                     <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{{ $u->employment_type?->label() }}</span>
                                 </td>
@@ -82,7 +85,7 @@
                                            class="inline-flex rounded-md bg-slate-100 p-1.5 text-slate-500 transition hover:bg-brand-100 hover:text-brand-700" title="Detail / beban kerja">
                                             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                         </a>
-                                        @if ($bisaKelola)
+                                        @if ($bisaKelola && auth()->user()->bolehMenetapkanPeran($u->role))
                                             <button wire:click="edit({{ $u->id }})" class="inline-flex rounded-md bg-slate-100 p-1.5 text-slate-500 transition hover:bg-brand-100 hover:text-brand-700" title="Edit">
                                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                             </button>
@@ -118,10 +121,19 @@
                             @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-slate-700">Peran/Jabatan</label>
-                            <input type="text" wire:model="role" placeholder="Animator, Lighting, Supervisor…" list="peran-opsi" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                            <datalist id="peran-opsi"><option>Animator</option><option>Lighting</option><option>Modeler</option><option>Rigger</option><option>Supervisor</option><option>Super Admin</option></datalist>
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Peran <span class="text-slate-400">(hak akses)</span></label>
+                            <select wire:model="role" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('role') border-red-400 @enderror">
+                                @foreach ($peranOpsi as $p)<option value="{{ $p }}">{{ $p }}</option>@endforeach
+                            </select>
+                            @error('role') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Jabatan <span class="text-slate-400">(spesialisasi — opsional)</span></label>
+                        <input type="text" wire:model="jabatan" placeholder="Animator, Modeller, SLRC…" list="jabatan-opsi" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('jabatan') border-red-400 @enderror">
+                        <datalist id="jabatan-opsi">@foreach ($jabatanOpsi as $j)<option>{{ $j }}</option>@endforeach</datalist>
+                        <p class="mt-1 text-[11px] text-slate-400">Seorang Artis dapat dipromosikan menjadi Team Lead lewat kolom Peran; jabatannya tetap.</p>
+                        @error('jabatan') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium text-slate-700">Email</label>
@@ -136,6 +148,11 @@
                                     <option value="{{ $t->value }}">{{ $t->label() }}</option>
                                 @endforeach
                             </select>
+                            <div class="mt-2">
+                                <label class="mb-1 block text-xs font-medium text-slate-600">Kapasitas (hari kerja/minggu)</label>
+                                <input type="number" min="0" max="7" wire:model="kapasitasHari" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('kapasitasHari') border-red-400 @enderror">
+                                @error('kapasitasHari') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                            </div>
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium text-slate-700">Kata sandi {{ $editingId ? '(kosongkan jika tetap)' : '' }}</label>

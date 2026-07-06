@@ -19,6 +19,7 @@ use App\Livewire\Pengaturan\Indeks as PengaturanIndeks;
 use App\Livewire\Pengaturan\Log as PengaturanLog;
 use App\Livewire\Pengaturan\Pipeline as PengaturanPipeline;
 use App\Livewire\Produksi\PascaProduksi;
+use App\Livewire\Produksi\PipelineEpisode;
 use App\Livewire\Produksi\PraProduksi;
 use App\Livewire\Proyek\DaftarProyek;
 use App\Livewire\Pustaka;
@@ -50,13 +51,18 @@ Route::middleware('auth')->group(function () {
     Route::get('/', Dashboard::class)->name('dashboard');
     Route::get('/shot-matrix', ShotMatrix::class)->name('shot-matrix');
     Route::get('/proyek', DaftarProyek::class)->name('proyek');
+    Route::get('/seri', \App\Livewire\Seri\Daftar::class)->name('seri');
+    Route::get('/proyek/{proyek}/pipeline', PipelineEpisode::class)->name('proyek.pipeline');
     Route::get('/proyek/{proyek}/bible.pdf', ProductionBibleController::class)->name('proyek.bible');
 
+    Route::get('/shotlist', \App\Livewire\Produksi\Shotlist::class)->name('shotlist');
     Route::get('/pra-produksi', PraProduksi::class)->name('pra-produksi');
     Route::get('/pasca-produksi', PascaProduksi::class)->name('pasca-produksi');
 
     // Asset Library — daftar tautan file seluruh proses (tree per episode).
     Route::get('/aset', Pustaka::class)->name('aset');
+    // Kelola Aset — CRUD aset + breakdown ke shot (Tier C1).
+    Route::get('/aset/kelola', \App\Livewire\Aset\Manager::class)->name('aset-kelola');
 
     Route::get('/notifikasi', NotifikasiDaftar::class)->name('notifikasi');
 
@@ -70,6 +76,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/pengaturan', PengaturanIndeks::class)->name('pengaturan');
     Route::get('/pengaturan/pipeline', PengaturanPipeline::class)->name('pengaturan.pipeline');
+    Route::get('/pengaturan/shotlist', \App\Livewire\Pengaturan\ShotlistKolom::class)->name('pengaturan.shotlist');
     Route::get('/pengaturan/log', PengaturanLog::class)->name('pengaturan.log');
 
     // --- Modul Kehadiran / Logbook / Monitoring (ABSENSI.md) ---

@@ -9,7 +9,8 @@ use Livewire\Component;
 
 /**
  * Detail seorang artis: beban kerja (penugasan lintas pipeline) + kehadiran &
- * logbook terbaru. Akses: Supervisor (manage-tim) atau artis itu sendiri. Lihat UI.md §8.15.
+ * logbook terbaru. Akses: Pemantauan (view-tim: Supervisor/Super Admin/Team Lead)
+ * atau artis itu sendiri. Lihat UI.md §8.15 & 2026-07-01_peran-team-lead-hak-akses.md.
  */
 #[Layout('components.layouts.app')]
 class DetailArtis extends Component
@@ -18,7 +19,7 @@ class DetailArtis extends Component
 
     public function mount(User $user): void
     {
-        abort_unless(Gate::allows('manage-config') || $user->id === auth()->id(), 403);
+        abort_unless(Gate::allows('view-tim') || $user->id === auth()->id(), 403);
         $this->artis = $user;
     }
 

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -21,6 +22,7 @@ class Shot extends Model
         'scene_id',
         'shot_code',
         'description',
+        'meta',
         'duration_seconds',
         'notes',
     ];
@@ -29,6 +31,7 @@ class Shot extends Model
     {
         return [
             'duration_seconds' => 'integer',
+            'meta' => 'array',
         ];
     }
 
@@ -42,5 +45,11 @@ class Shot extends Model
     public function tugasShot(): HasMany
     {
         return $this->hasMany(TugasShot::class, 'shot_id');
+    }
+
+    /** Aset (breakdown) yang dipakai shot ini. @return BelongsToMany<Aset, $this> */
+    public function aset(): BelongsToMany
+    {
+        return $this->belongsToMany(Aset::class, 'kf_aset_shot', 'shot_id', 'aset_id')->withTimestamps();
     }
 }

@@ -7,6 +7,7 @@ use App\Enums\LevelTahap;
 use App\Enums\RevisionStatus;
 use App\Enums\TaskStatus;
 use App\Models\Adegan;
+use App\Models\Proyek;
 use App\Models\Shot;
 use App\Models\Tahap;
 use Illuminate\Support\Facades\DB;
@@ -27,8 +28,12 @@ class CreateShot
             $shot = Shot::create($data);
 
             // Tahap dari snapshot pipeline EPISODE shot ini (bukan template global).
-            $projectId = Adegan::whereKey($data['scene_id'])->value('project_id');
-            $tahapShot = Tahap::milikEpisode((int) $projectId)
+            $projectId = (int) Adegan::whereKey($data['scene_id'])->value('project_id');
+
+            // Self-heal: pastikan episode punya snapshot pipeline sebelum membuat sub-task.
+            Proyek::whereKey($projectId)->first()?->pastikanPipeline();
+
+            $tahapShot = Tahap::milikEpisode($projectId)
                 ->aktif()
                 ->fase(FaseProduksi::PRODUKSI)
                 ->where('level', LevelTahap::SHOT->value)

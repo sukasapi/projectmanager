@@ -11,7 +11,7 @@
         <span class="flex h-14 w-14 items-center justify-center rounded-full bg-brand-100 text-xl font-bold text-brand-700">{{ strtoupper(substr($artis->name, 0, 1)) }}</span>
         <div class="flex-1">
             <h1 class="text-xl font-bold tracking-tight text-slate-900">{{ $artis->name }}</h1>
-            <p class="text-sm text-slate-500">{{ $artis->email }} · {{ $artis->role ?? '—' }}</p>
+            <p class="text-sm text-slate-500">{{ $artis->email }} · {{ $artis->role ?? '—' }}@if ($artis->jabatan) · {{ $artis->jabatan }}@endif</p>
             <div class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                 @if ($artis->phone)
                     <span class="inline-flex items-center gap-1"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11 11 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>{{ $artis->phone }}</span>
