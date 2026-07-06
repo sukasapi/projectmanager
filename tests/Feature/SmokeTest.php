@@ -39,9 +39,9 @@ class SmokeTest extends TestCase
         $admin = $this->user('admin@animtrack.test'); // Super Admin
 
         $routes = [
-            '/', '/shot-matrix', '/proyek', '/pra-produksi', '/pasca-produksi', '/aset', '/notifikasi',
+            '/', '/shot-matrix', '/proyek', '/seri', '/shotlist', '/pra-produksi', '/pasca-produksi', '/aset', '/aset/kelola', '/notifikasi',
             '/tugas-saya', '/jadwal', '/laporan/progress', '/cari',
-            '/tim', '/pengaturan', '/pengaturan/pipeline', '/pengaturan/log',
+            '/tim', '/pengaturan', '/pengaturan/pipeline', '/pengaturan/shotlist', '/pengaturan/log',
             '/kehadiran', '/kehadiran/riwayat', '/logbook', '/logbook/review',
             '/monitoring', '/laporan/kehadiran',
         ];

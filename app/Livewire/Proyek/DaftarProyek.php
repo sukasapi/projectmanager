@@ -6,6 +6,7 @@ use App\Enums\ProjectStatus;
 use App\Models\Klien;
 use App\Models\Notifikasi;
 use App\Models\Proyek;
+use App\Models\Seri;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -30,6 +31,8 @@ class DaftarProyek extends Component
     public string $status = '';
 
     public ?int $clientId = null;
+
+    public ?int $seriId = null;
 
     public ?int $teamLeadId = null;
 
@@ -63,6 +66,7 @@ class DaftarProyek extends Component
         $this->description = $proyek->description ?? '';
         $this->status = $proyek->status->value;
         $this->clientId = $proyek->client_id;
+        $this->seriId = $proyek->series_id;
         $this->teamLeadId = $proyek->team_lead_id;
         $this->newClientName = '';
         $this->resetErrorBag();
@@ -78,7 +82,9 @@ class DaftarProyek extends Component
             'description' => ['nullable', 'string'],
             'status' => ['required', Rule::in(array_column(ProjectStatus::cases(), 'value'))],
             'clientId' => ['nullable', 'integer', Rule::exists('kf_klien', 'id')],
-            'teamLeadId' => ['nullable', 'integer', Rule::exists('kf_pengguna', 'id')],
+            'seriId' => ['nullable', 'integer', Rule::exists('kf_seri', 'id')],
+            // Team lead episode hanya boleh dari user berperan Team Lead / supervisi (bukan artis biasa).
+            'teamLeadId' => ['nullable', 'integer', Rule::exists('kf_pengguna', 'id')->whereIn('role', ['Team Lead', 'Supervisor', 'Super Admin'])],
             'newClientName' => ['nullable', 'string', 'max:255'],
         ], attributes: [
             'name' => 'nama episode',
@@ -98,6 +104,7 @@ class DaftarProyek extends Component
                 'description' => $validated['description'] ?: null,
                 'status' => $validated['status'],
                 'client_id' => $clientId,
+                'series_id' => $validated['seriId'] ?: null,
                 'team_lead_id' => $validated['teamLeadId'] ?: null,
             ]
         );
@@ -186,7 +193,7 @@ class DaftarProyek extends Component
 
     protected function resetForm(): void
     {
-        $this->reset(['editingId', 'name', 'description', 'clientId', 'teamLeadId', 'newClientName']);
+        $this->reset(['editingId', 'name', 'description', 'clientId', 'seriId', 'teamLeadId', 'newClientName']);
         $this->status = ProjectStatus::PLANNING->value;
         $this->resetErrorBag();
     }
@@ -203,8 +210,13 @@ class DaftarProyek extends Component
         return view('livewire.proyek.daftar-proyek', [
             'episodes' => $episodes,
             'daftarKlien' => Klien::orderBy('name')->get(['id', 'name']),
+            'daftarSeri' => Seri::orderBy('name')->get(['id', 'name']),
             'daftarStatus' => ProjectStatus::cases(),
-            'daftarArtis' => User::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            // Kandidat team lead: hanya peran Team Lead / supervisi.
+            'daftarArtis' => User::where('is_active', true)
+                ->whereIn('role', ['Team Lead', 'Supervisor', 'Super Admin'])
+                ->orderBy('name')
+                ->get(['id', 'name', 'role']),
             'bisaKelola' => Gate::allows('manage-tim'),
         ]);
     }

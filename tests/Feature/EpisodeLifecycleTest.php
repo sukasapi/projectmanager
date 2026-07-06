@@ -30,7 +30,7 @@ class EpisodeLifecycleTest extends TestCase
 
     public function test_supervisor_menugaskan_team_lead(): void
     {
-        $lead = User::factory()->create();
+        $lead = User::factory()->create(['role' => 'Team Lead']);
 
         Livewire::actingAs($this->supervisor())->test(DaftarProyek::class)
             ->call('create')

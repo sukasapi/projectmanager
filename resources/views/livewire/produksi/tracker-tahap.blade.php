@@ -172,6 +172,11 @@
                         </div>
                     </div>
                     <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Estimasi (hari) <span class="text-slate-400">(untuk kapasitas)</span></label>
+                        <input type="number" min="0" wire:model="estimasiHari" placeholder="mis. 3" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('estimasiHari') border-red-400 @enderror">
+                        @error('estimasiHari') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
                         <label class="mb-1 block text-sm font-medium text-slate-700">Tautan file/output <span class="text-slate-400">(opsional)</span></label>
                         <input type="url" wire:model="fileUrl" placeholder="https://… (tautan baru otomatis jadi versi berikutnya)" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('fileUrl') border-red-400 @enderror">
                         @error('fileUrl') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror

@@ -40,6 +40,9 @@ abstract class TrackerTahap extends Component
 
     public ?string $deadline = null;
 
+    /** Estimasi lama pengerjaan (hari) untuk perencanaan kapasitas (Tier C3). */
+    public ?int $estimasiHari = null;
+
     // Tolak (reject) & riwayat (history).
     public bool $showReject = false;
 
@@ -91,7 +94,8 @@ abstract class TrackerTahap extends Component
 
     public function edit(int $tahapId): void
     {
-        abort_unless($this->proyekId && $this->bolehAkses($this->proyekId), 403);
+        // Setup tahap hanya untuk pengelola (Supervisor/Super Admin/Team Lead episode).
+        abort_unless($this->dapatKelola(), 403);
 
         $row = TugasTahap::firstOrCreate(
             ['project_id' => $this->proyekId, 'tahap_id' => $tahapId],
@@ -104,6 +108,7 @@ abstract class TrackerTahap extends Component
         $this->deskripsi = $row->deskripsi ?? '';
         $this->startDate = $row->start_date?->toDateString();
         $this->deadline = $row->deadline?->toDateString();
+        $this->estimasiHari = $row->estimasi_hari;
         $this->resetErrorBag();
         $this->showForm = true;
     }
@@ -119,6 +124,7 @@ abstract class TrackerTahap extends Component
             'deskripsi' => ['nullable', 'string', 'max:2000'],
             'startDate' => ['nullable', 'date'],
             'deadline' => ['nullable', 'date', 'after_or_equal:startDate'],
+            'estimasiHari' => ['nullable', 'integer', 'min:0', 'max:365'],
         ]);
 
         $row = TugasTahap::with(['proyek', 'tahap'])->where('project_id', $this->proyekId)->whereKey($this->editingId)->first();
@@ -131,6 +137,7 @@ abstract class TrackerTahap extends Component
             'deskripsi' => $validated['deskripsi'] ?: null,
             'start_date' => $validated['startDate'] ?: null,
             'deadline' => $validated['deadline'] ?: null,
+            'estimasi_hari' => $validated['estimasiHari'],
         ]);
 
         // Catat versi deliverable bila tautan file berubah.
@@ -142,7 +149,7 @@ abstract class TrackerTahap extends Component
         }
 
         $this->showForm = false;
-        $this->reset(['editingId', 'artistId', 'fileUrl', 'deskripsi', 'startDate', 'deadline']);
+        $this->reset(['editingId', 'artistId', 'fileUrl', 'deskripsi', 'startDate', 'deadline', 'estimasiHari']);
         $this->dispatch('tahap-tugas-tersimpan');
         $this->dispatch('toast', message: 'Penugasan disimpan.');
     }
@@ -150,7 +157,7 @@ abstract class TrackerTahap extends Component
     public function cancel(): void
     {
         $this->showForm = false;
-        $this->reset(['editingId', 'artistId', 'fileUrl', 'deskripsi', 'startDate', 'deadline']);
+        $this->reset(['editingId', 'artistId', 'fileUrl', 'deskripsi', 'startDate', 'deadline', 'estimasiHari']);
         $this->resetErrorBag();
     }
 
@@ -209,12 +216,36 @@ abstract class TrackerTahap extends Component
 
     public function mulai(int $id): void
     {
-        $row = TugasTahap::with('proyek')->findOrFail($id);
+        $row = TugasTahap::with(['proyek', 'tahap'])->findOrFail($id);
         abort_unless($this->bisaKerja($row), 403);
 
-        if ($row->status === TaskStatus::NOT_STARTED) {
-            $this->transisi($row, TaskStatus::IN_PROGRESS, 'MULAI');
+        if ($row->status !== TaskStatus::NOT_STARTED) {
+            return;
         }
+
+        // Cegah loncat tahap: prasyarat (requires_tahap_id) harus APPROVED dulu.
+        if (! $this->prasyaratDisetujui($row)) {
+            $nama = Tahap::whereKey($row->tahap?->requires_tahap_id)->value('name') ?? 'tahap sebelumnya';
+            $this->dispatch('toast', message: "Tahap \"{$nama}\" harus disetujui dulu.", icon: 'error');
+
+            return;
+        }
+
+        $this->transisi($row, TaskStatus::IN_PROGRESS, 'MULAI');
+    }
+
+    /** Prasyarat tahap (bila ada) sudah APPROVED pada episode yang sama? */
+    private function prasyaratDisetujui(TugasTahap $row): bool
+    {
+        $prasyaratId = $row->tahap?->requires_tahap_id;
+        if (! $prasyaratId) {
+            return true;
+        }
+
+        return TugasTahap::where('project_id', $row->project_id)
+            ->where('tahap_id', $prasyaratId)
+            ->where('status', TaskStatus::APPROVED->value)
+            ->exists();
     }
 
     public function propose(int $id): void
@@ -244,6 +275,15 @@ abstract class TrackerTahap extends Component
             if ($row->artist_id) {
                 Notifikasi::kirim($row->artist_id, "Disetujui: {$row->tahap?->name}", "{$row->proyek->name} — pekerjaan Anda disetujui.", route($this->routeName()), 'approve');
             }
+
+            // Notif downstream: tahap dependen (requires tahap ini) kini bisa dimulai.
+            $dependen = TugasTahap::where('project_id', $row->project_id)
+                ->whereHas('tahap', fn ($q) => $q->where('requires_tahap_id', $row->tahap_id))
+                ->whereNotNull('artist_id')->with('tahap:id,name')->get();
+            foreach ($dependen as $d) {
+                Notifikasi::kirim($d->artist_id, "Bisa dimulai: {$d->tahap?->name}", "{$row->proyek->name} — prasyarat {$row->tahap?->name} sudah disetujui.", route($this->routeName()), 'info');
+            }
+
             $this->dispatch('toast', message: 'Pekerjaan disetujui.');
         }
     }

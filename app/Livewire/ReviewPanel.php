@@ -7,6 +7,8 @@ use App\Actions\TransitionShotTaskStatus;
 use App\Enums\RevisionStatus;
 use App\Enums\TaskStatus;
 use App\Exceptions\InvalidShotTaskTransition;
+use App\Models\CatatanReview;
+use App\Models\KolomShotlist;
 use App\Models\Notifikasi;
 use App\Models\Proyek;
 use App\Models\TugasShot;
@@ -22,9 +24,6 @@ class ReviewPanel extends Component
 
     public bool $terbuka = false;
 
-    /** Identitas peninjau (untuk mendemonstrasikan guard approval magang). */
-    public ?int $actorId = null;
-
     public string $catatan = '';
 
     public string $previewUrl = '';
@@ -32,6 +31,9 @@ class ReviewPanel extends Component
     public ?string $startDate = null;
 
     public ?string $deadline = null;
+
+    /** Estimasi lama pengerjaan (hari) — untuk perencanaan kapasitas (Tier C3). */
+    public ?int $estimasiHari = null;
 
     /** Penugasan artis (many-to-many: satu tahap bisa banyak artis). */
     public array $artisIds = [];
@@ -42,11 +44,15 @@ class ReviewPanel extends Component
     /** Catatan opsional untuk versi deliverable yang baru disimpan. */
     public string $versiCatatan = '';
 
-    public function mount(): void
-    {
-        // Identitas peninjau = pengguna yang sedang login.
-        $this->actorId ??= auth()->id();
-    }
+    /** Catatan review terstruktur (Tier C2): rentang frame + isi. */
+    public ?int $noteFrameStart = null;
+
+    public ?int $noteFrameEnd = null;
+
+    public string $noteBody = '';
+
+    /** Referensi shotlist (metadata shot) yang dapat diedit pengelola dari panel review. */
+    public array $metaEdit = [];
 
     #[On('buka-review')]
     public function buka(int $tugasShotId): void
@@ -66,8 +72,10 @@ class ReviewPanel extends Component
         $this->previewUrl = $task?->preview_url ?? '';
         $this->startDate = $task?->start_date?->toDateString();
         $this->deadline = $task?->deadline?->toDateString();
+        $this->estimasiHari = $task?->estimasi_hari;
         $this->artisIds = $task?->artists->pluck('id')->map(fn ($i) => (string) $i)->all() ?? [];
         $this->deskripsiShot = $task?->shot?->description ?? '';
+        $this->metaEdit = $task?->shot?->meta ?? [];
         $this->catatan = '';
         $this->terbuka = true;
     }
@@ -100,6 +108,19 @@ class ReviewPanel extends Component
         $this->task()?->shot?->update(['description' => $this->deskripsiShot ?: null]);
         $this->dispatch('shot-tersimpan');
         $this->dispatch('toast', message: 'Deskripsi shot disimpan.');
+    }
+
+    /** Simpan referensi shotlist (metadata shot) — hanya pengelola. */
+    public function simpanMeta(): void
+    {
+        abort_unless($this->dapatKelola(), 403);
+
+        $keys = KolomShotlist::query()->aktif()->whereNull('peran')->pluck('key');
+        $meta = collect($this->metaEdit)->only($keys)->map(fn ($v) => trim((string) $v))->filter(fn ($v) => $v !== '')->all();
+
+        $this->task()?->shot?->update(['meta' => $meta ?: null]);
+        $this->dispatch('shot-tersimpan');
+        $this->dispatch('toast', message: 'Referensi shotlist disimpan.');
     }
 
     /** Bantu tulis deskripsi shot dengan AI (Gemini). Hanya pengelola & bila key diisi. */
@@ -200,13 +221,14 @@ class ReviewPanel extends Component
     public function task(): ?TugasShot
     {
         return $this->tugasShotId
-            ? TugasShot::with(['shot.adegan.proyek', 'artists', 'revisi.author', 'versi.author'])->find($this->tugasShotId)
+            ? TugasShot::with(['shot.adegan.proyek', 'shot.aset', 'artists', 'revisi.author', 'versi.author', 'catatanReview.author'])->find($this->tugasShotId)
             : null;
     }
 
+    /** Peninjau/pelaku selalu pengguna yang login (bukan properti client-settable). */
     protected function actor(): ?User
     {
-        return $this->actorId ? User::find($this->actorId) : null;
+        return auth()->user();
     }
 
     public function simpanPreview(): void
@@ -221,13 +243,15 @@ class ReviewPanel extends Component
             'previewUrl' => ['nullable', 'url', 'max:2048'],
             'startDate' => ['nullable', 'date'],
             'deadline' => ['nullable', 'date', 'after_or_equal:startDate'],
-        ], attributes: ['startDate' => 'tanggal mulai']);
+            'estimasiHari' => ['nullable', 'integer', 'min:0', 'max:365'],
+        ], attributes: ['startDate' => 'tanggal mulai', 'estimasiHari' => 'estimasi hari']);
 
         $task?->update([
             'preview_url' => $this->previewUrl ?: null,
             'post_date' => now(),
             'start_date' => $this->startDate ?: null,
             'deadline' => $this->deadline ?: null,
+            'estimasi_hari' => $this->estimasiHari,
         ]);
 
         // Catat versi baru bila tautan preview berubah (riwayat deliverable).
@@ -281,7 +305,7 @@ class ReviewPanel extends Component
     /** Notifikasi: propose (→REVIEW) ke pengelola; approve (→APPROVED) ke artis. */
     private function notifikasiTransisi(TugasShot $task, string $target): void
     {
-        $task->loadMissing(['shot.adegan', 'artists']);
+        $task->loadMissing(['shot.adegan', 'artists', 'tahap']);
         $kode = $task->shot?->shot_code ?? 'Shot';
         $projectId = $task->shot?->adegan?->project_id;
 
@@ -294,6 +318,14 @@ class ReviewPanel extends Component
             Notifikasi::kirimBanyak($ids, "Menunggu review: {$kode}", "{$task->tahap?->name} diajukan untuk review.", route('shot-matrix'), 'propose');
         } elseif ($target === TaskStatus::APPROVED->value) {
             Notifikasi::kirimBanyak($task->artists->pluck('id'), "Disetujui: {$kode}", "{$task->tahap?->name} disetujui.", route('shot-matrix'), 'approve');
+
+            // Notif downstream: tahap yang menjadikan tahap ini prasyarat kini bisa dimulai.
+            $dependen = TugasShot::where('shot_id', $task->shot_id)
+                ->whereHas('tahap', fn ($q) => $q->where('requires_tahap_id', $task->tahap_id))
+                ->with(['artists:id', 'tahap:id,name'])->get();
+            foreach ($dependen as $d) {
+                Notifikasi::kirimBanyak($d->artists->pluck('id'), "Bisa dimulai: {$kode} · {$d->tahap?->name}", "Prasyarat {$task->tahap?->name} sudah disetujui.", route('shot-matrix'), 'info');
+            }
         }
     }
 
@@ -328,6 +360,50 @@ class ReviewPanel extends Component
         $this->dispatch('shot-tersimpan');
     }
 
+    /** Tambah catatan review terstruktur (rentang frame opsional). Hanya peninjau. */
+    public function tambahCatatanReview(): void
+    {
+        if (! $this->dapatReview()) {
+            $this->addError('noteBody', 'Hanya supervisor/team lead yang dapat memberi catatan review.');
+
+            return;
+        }
+
+        $v = $this->validate([
+            'noteFrameStart' => ['nullable', 'integer', 'min:0'],
+            'noteFrameEnd' => ['nullable', 'integer', 'min:0', 'gte:noteFrameStart'],
+            'noteBody' => ['required', 'string', 'max:1000'],
+        ], attributes: ['noteBody' => 'catatan']);
+
+        $task = $this->task();
+        if (! $task) {
+            return;
+        }
+
+        $task->catatanReview()->create([
+            'frame_start' => $v['noteFrameStart'],
+            'frame_end' => $v['noteFrameEnd'],
+            'body' => $v['noteBody'],
+            'status' => 'open',
+            'author_id' => auth()->id(),
+        ]);
+
+        $this->reset(['noteFrameStart', 'noteFrameEnd', 'noteBody']);
+        $this->dispatch('shot-tersimpan');
+    }
+
+    /** Tandai catatan review selesai/terbuka. Peninjau atau artis yang ditugaskan. */
+    public function toggleCatatanReview(int $id): void
+    {
+        $task = $this->task();
+        $boleh = $this->dapatReview() || ($task && $task->artists->contains(auth()->id()));
+        abort_unless($boleh, 403);
+
+        $note = CatatanReview::where('shot_task_id', $this->tugasShotId)->find($id);
+        $note?->update(['status' => $note->status === 'resolved' ? 'open' : 'resolved']);
+        $this->dispatch('shot-tersimpan');
+    }
+
     /** Status prasyarat tahap (dependensi pipeline) untuk task aktif. */
     private function prasyarat(): array
     {
@@ -359,8 +435,11 @@ class ReviewPanel extends Component
             'bisaKerja' => $this->bisaKerja(),
             'prereqOk' => $prasyarat['ok'],
             'prereqNama' => $prasyarat['nama'],
+            'retake' => $this->task()?->jumlahRetake() ?? 0,
             'aiAktif' => app(GeminiService::class)->aktif(),
             'daftarArtis' => User::where('is_active', true)->orderBy('name')->get(['id', 'name', 'role']),
+            'shotlistLabel' => KolomShotlist::pluck('label', 'key'),
+            'metaKolom' => KolomShotlist::query()->aktif()->urut()->whereNull('peran')->get(['id', 'key', 'label', 'tipe', 'opsi']),
         ]);
     }
 }

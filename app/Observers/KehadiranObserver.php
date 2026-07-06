@@ -14,9 +14,9 @@ class KehadiranObserver
     public function saving(Kehadiran $kehadiran): void
     {
         if ($kehadiran->clock_in && $kehadiran->clock_out) {
-            $kehadiran->work_duration_minutes = (int) abs(
-                $kehadiran->clock_in->diffInMinutes($kehadiran->clock_out)
-            );
+            // Durasi bertanda: clock_out sebelum clock_in (data anomali) → 0, bukan disamarkan abs().
+            $menit = $kehadiran->clock_in->diffInMinutes($kehadiran->clock_out, false);
+            $kehadiran->work_duration_minutes = (int) max(0, $menit);
         } else {
             $kehadiran->work_duration_minutes = 0;
         }

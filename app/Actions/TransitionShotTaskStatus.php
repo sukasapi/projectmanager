@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Enums\EmploymentType;
+use App\Enums\RevisionStatus;
 use App\Enums\TaskStatus;
 use App\Exceptions\InvalidShotTaskTransition;
 use App\Models\RevisiShot;
@@ -44,7 +45,14 @@ class TransitionShotTaskStatus
         }
 
         return DB::transaction(function () use ($task, $current, $target, $actor, $note) {
-            $task->update(['status' => $target->value]);
+            $perubahan = ['status' => $target->value];
+
+            // Saat disetujui, bersihkan penanda revisi agar tidak ada badge "perlu revisi" basi.
+            if ($target === TaskStatus::APPROVED) {
+                $perubahan['revision_status'] = RevisionStatus::OK->value;
+            }
+
+            $task->update($perubahan);
 
             RevisiShot::create([
                 'shot_task_id' => $task->id,

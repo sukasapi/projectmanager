@@ -184,6 +184,81 @@
                 </div>
             </form>
         </div>
+
+        {{-- Konfigurasi SMTP (Email) --}}
+        <div class="mt-5 rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-900">Konfigurasi SMTP (Email)</h2>
+                    <p class="text-xs text-slate-500">Server email untuk notifikasi & reset kata sandi. Bila host diisi, menimpa pengaturan <code>.env</code>.</p>
+                </div>
+                <span class="rounded-full px-2.5 py-0.5 text-[11px] font-medium {{ $perusahaan->smtpAktif() ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500' }}">{{ $perusahaan->smtpAktif() ? 'Aktif (DB)' : 'Pakai .env' }}</span>
+            </div>
+            <form wire:submit="simpanSmtp" class="space-y-4 px-5 py-5">
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="col-span-2">
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Host</label>
+                        <input type="text" wire:model="smtp_host" placeholder="mail.domainanda.com" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('smtp_host') border-red-400 @enderror">
+                        @error('smtp_host') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Port</label>
+                        <input type="number" wire:model="smtp_port" placeholder="587" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('smtp_port') border-red-400 @enderror">
+                        @error('smtp_port') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Username</label>
+                        <input type="text" wire:model="smtp_username" placeholder="noreply@domainanda.com" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Password {{ $perusahaan->smtpAktif() ? '(kosongkan jika tetap)' : '' }}</label>
+                        <input type="password" wire:model="smtp_password" autocomplete="new-password" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('smtp_password') border-red-400 @enderror">
+                        @error('smtp_password') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Enkripsi</label>
+                        <select wire:model="smtp_encryption" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                            <option value="">— tanpa —</option>
+                            <option value="tls">TLS</option>
+                            <option value="ssl">SSL</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Email pengirim</label>
+                        <input type="email" wire:model="smtp_from_address" placeholder="noreply@domainanda.com" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('smtp_from_address') border-red-400 @enderror">
+                        @error('smtp_from_address') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Nama pengirim</label>
+                        <input type="text" wire:model="smtp_from_name" placeholder="{{ $perusahaan->appName() }}" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                    </div>
+                </div>
+                <div class="flex justify-end border-t border-slate-100 pt-4">
+                    <button type="submit" wire:loading.attr="disabled" wire:target="simpanSmtp" class="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60">Simpan SMTP</button>
+                </div>
+            </form>
+
+            {{-- Kirim email uji --}}
+            <div class="border-t border-slate-100 bg-slate-50/60 px-5 py-4">
+                <label class="mb-1 block text-sm font-medium text-slate-700">Kirim email uji</label>
+                <div class="flex flex-wrap items-start gap-2">
+                    <div class="flex-1">
+                        <input type="email" wire:model="ujiEmail" placeholder="tujuan@email.com" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('ujiEmail') border-red-400 @enderror">
+                        @error('ujiEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <button type="button" wire:click="kirimUji" wire:loading.attr="disabled" wire:target="kirimUji" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">
+                        <span wire:loading.remove wire:target="kirimUji">Kirim Uji</span>
+                        <span wire:loading wire:target="kirimUji">Mengirim…</span>
+                    </button>
+                </div>
+                @if ($ujiHasil === 'ok')<p class="mt-2 text-xs font-medium text-green-600">✓ Email uji terkirim. Cek kotak masuk (atau folder spam).</p>@endif
+                <p class="mt-1 text-[11px] text-slate-400">Uji memakai nilai di form (password memakai yang tersimpan bila dikosongkan).</p>
+            </div>
+        </div>
     @endif
 
     {{-- Pintasan admin --}}

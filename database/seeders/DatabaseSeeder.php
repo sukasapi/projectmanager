@@ -20,6 +20,7 @@ use App\Models\Logbook;
 use App\Models\Notifikasi;
 use App\Models\Perusahaan;
 use App\Models\Proyek;
+use App\Models\Seri;
 use App\Models\Shot;
 use App\Models\Tahap;
 use App\Models\TugasShot;
@@ -38,6 +39,9 @@ class DatabaseSeeder extends Seeder
     {
         // --- Tahap produksi default (configurable, proses #7) ---
         $this->call(TahapSeeder::class);
+
+        // --- Kolom Shotlist default (dapat dimodifikasi admin) ---
+        $this->call(KolomShotlistSeeder::class);
 
         // --- Profil perusahaan/studio (singleton) ---
         Perusahaan::create([
@@ -68,11 +72,23 @@ class DatabaseSeeder extends Seeder
             'employment_type' => EmploymentType::CONTRACT->value,
         ]);
 
+        // Team Lead (peran) — di-assign supervisor ke episode tertentu (lihat bawah).
+        // Boleh melihat Pemantauan & Tim & Artis, membuat pipeline & mereview episode yang dipimpin.
+        $teamLead = User::create([
+            'name' => 'Doni (Team Lead)',
+            'email' => 'teamlead@animtrack.test',
+            'password' => Hash::make('password'),
+            'role' => 'Team Lead',
+            'jabatan' => 'Animator', // artis yang dipromosikan jadi team lead
+            'employment_type' => EmploymentType::CONTRACT->value,
+        ]);
+
         $ikmal = User::create([
             'name' => 'Ikmal',
             'email' => 'ikmal@animtrack.test',
             'password' => Hash::make('password'),
-            'role' => 'Animator',
+            'role' => 'Artis',
+            'jabatan' => 'Animator',
             'employment_type' => EmploymentType::CONTRACT->value,
         ]);
 
@@ -80,7 +96,8 @@ class DatabaseSeeder extends Seeder
             'name' => 'Nando',
             'email' => 'nando@animtrack.test',
             'password' => Hash::make('password'),
-            'role' => 'Animator',
+            'role' => 'Artis',
+            'jabatan' => 'Animator',
             'employment_type' => EmploymentType::FREELANCE->value,
         ]);
 
@@ -88,7 +105,8 @@ class DatabaseSeeder extends Seeder
             'name' => 'Sari',
             'email' => 'sari@animtrack.test',
             'password' => Hash::make('password'),
-            'role' => 'Lighting',
+            'role' => 'Artis',
+            'jabatan' => 'Lighting',
             'employment_type' => EmploymentType::INTERN->value,
         ]);
 
@@ -107,7 +125,7 @@ class DatabaseSeeder extends Seeder
             'description' => 'Episode lengkap & selesai — semua tahap pra, produksi, dan pasca telah disetujui.',
             'status' => ProjectStatus::COMPLETED->value,
             'client_id' => $klien->id,
-            'team_lead_id' => $ikmal->id,
+            'team_lead_id' => $teamLead->id,
             'published_at' => now()->subDays(20),
             'closed_at' => now()->subDays(1), // sudah closed
         ]);
@@ -196,6 +214,11 @@ class DatabaseSeeder extends Seeder
         Aset::create(['project_id' => $proyek->id, 'type' => AssetType::ENVIRONMENT->value, 'name' => 'Desa Tepi Sungai', 'task' => AssetTask::TEXTURING->value, 'artist_id' => $sari->id, 'status' => TaskStatus::APPROVED->value]);
         Aset::create(['project_id' => $proyek->id, 'type' => AssetType::PROPERTY->value, 'name' => 'Perahu Kayu', 'task' => AssetTask::MODELING->value, 'artist_id' => $nando->id, 'status' => TaskStatus::APPROVED->value]);
 
+        // Breakdown contoh: aset Bima dipakai pada shot Scene 01 (Tier C1).
+        $bima = Aset::where('project_id', $proyek->id)->where('name', 'Karakter Utama - Bima')->first();
+        $shotBima = Shot::whereIn('scene_id', $proyek->adegan()->pluck('id'))->orderBy('id')->take(2)->pluck('id');
+        $bima?->shots()->sync($shotBima);
+
         // --- Pra & Pasca Cerita 23: SEMUA tahap APPROVED (episode selesai) ---
         $rotasi = [$ikmal->id, $nando->id, $sari->id];
 
@@ -220,11 +243,19 @@ class DatabaseSeeder extends Seeder
         // --- Episode demo tambahan (Cerita 21 & 27, masing-masing 5 scene/31 shot) ---
         $this->call(EpisodeDemoSeeder::class);
 
+        // Supervisor meng-assign Team Lead ke sebuah episode → Doni dapat kelola pipeline & review Cerita 21.
+        Proyek::where('name', 'Cerita 21')->update(['team_lead_id' => $teamLead->id]);
+
+        // Seri induk (Tier C6): kelompokkan ketiga episode + jadikan aset Bima "bersama" seri.
+        $seri = Seri::create(['name' => 'Petualangan Bima', 'description' => 'Serial animasi utama studio.']);
+        Proyek::whereIn('name', ['Cerita 23', 'Cerita 21', 'Cerita 27'])->update(['series_id' => $seri->id]);
+        Aset::where('project_id', $proyek->id)->where('name', 'Karakter Utama - Bima')->update(['series_id' => $seri->id]);
+
         // Contoh notifikasi (mis. hasil publish episode).
         Notifikasi::kirim($ikmal->id, 'Episode dipublish: Cerita 21', 'Anda ditugaskan pada episode ini.', '/', 'publish');
         Notifikasi::kirim($nando->id, 'Episode dipublish: Cerita 27', 'Anda ditugaskan pada episode ini.', '/', 'publish');
 
-        $this->command->info('Seed selesai: 4 artis, 3 proyek (Cerita 23/21/27), shot + tugas Pra/Pasca.');
+        $this->command->info('Seed selesai: 6 pengguna (admin/supervisor/team lead + 3 artis), 3 proyek (Cerita 23/21/27), shot + tugas Pra/Pasca.');
         $this->command->info('Total durasi Scene 01 = '.$scene->fresh()->total_duration.'s (harusnya 196s).');
         $this->command->info('Kehadiran hari ini: 3 baris (Ikmal hadir, Nando offsite, Sari terlambat) + 2 entri logbook.');
     }

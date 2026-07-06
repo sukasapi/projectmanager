@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\SnapshotPipeline;
 use App\Enums\ProjectStatus;
 use App\Observers\ProyekObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -28,6 +29,7 @@ class Proyek extends Model
         'description',
         'status',
         'client_id',
+        'series_id',
         'team_lead_id',
         'published_at',
         'closed_at',
@@ -127,6 +129,12 @@ class Proyek extends Model
         return $this->belongsTo(Klien::class, 'client_id');
     }
 
+    /** @return BelongsTo<Seri, $this> */
+    public function seri(): BelongsTo
+    {
+        return $this->belongsTo(Seri::class, 'series_id');
+    }
+
     /** @return HasMany<Adegan, $this> */
     public function adegan(): HasMany
     {
@@ -161,5 +169,16 @@ class Proyek extends Model
     public function tahap(): HasMany
     {
         return $this->hasMany(Tahap::class, 'project_id');
+    }
+
+    /**
+     * Self-heal: bila episode kehilangan snapshot pipeline (mis. gagal transien saat
+     * dibuat), bekukan ulang dari template global. Idempoten. Lihat SnapshotPipeline.
+     */
+    public function pastikanPipeline(): void
+    {
+        if ($this->tahap()->doesntExist()) {
+            app(SnapshotPipeline::class)->untukEpisode($this);
+        }
     }
 }
