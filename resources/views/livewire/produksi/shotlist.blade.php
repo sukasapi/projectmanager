@@ -23,7 +23,7 @@
                 </button>
                 <div>
                     <h1 class="text-xl font-bold tracking-tight text-slate-900">Shotlist — {{ $proyek->name }}</h1>
-                    <p class="text-sm text-slate-500">{{ $rows->count() }} baris · {{ $belumDigenerate }} belum di-generate ke Produksi.</p>
+                    <p class="text-sm text-slate-500">{{ $rows->count() }} baris · {{ $belumDigenerate }} belum di-generate ke Produksi.@if ($bisaKelola) <span class="text-slate-400">· klik 2× pada sel untuk edit cepat</span>@endif</p>
                 </div>
             </div>
             @if ($bisaKelola)
@@ -32,6 +32,12 @@
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
                         Tambah Baris
                     </button>
+                    @if ($aiAktif)
+                        <button wire:click="bukaFormAi" class="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-violet-700" title="Buat shotlist dari skenario dengan bantuan AI">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
+                            Buat dengan AI
+                        </button>
+                    @endif
                     @php
                         $genPesan = $shotlistDisetujui
                             ? 'Generate '.$belumDigenerate.' baris shotlist menjadi shot di Produksi?'
@@ -46,6 +52,30 @@
                 </div>
             @endif
         </div>
+
+        {{-- Skenario episode (sumber shotlist manual maupun AI) --}}
+        @if ($bisaIsiSkenario)
+            <div x-data="{ open: {{ trim($skenario) === '' ? 'true' : 'false' }} }" class="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <button type="button" x-on:click="open = !open" class="flex w-full items-center justify-between px-4 py-3 text-left">
+                    <span class="text-sm font-semibold text-slate-700">Skenario Episode</span>
+                    <span class="flex items-center gap-2">
+                        <span class="text-[11px] text-slate-400">{{ trim($skenario) === '' ? 'belum diisi' : 'terisi' }}</span>
+                        <svg class="h-4 w-4 text-slate-400 transition" :class="open && 'rotate-180'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                    </span>
+                </button>
+                <div x-show="open" class="space-y-2 border-t border-slate-100 px-4 py-3">
+                    <textarea wire:model="skenario" rows="8" placeholder="Tempel / tulis skenario (naskah) episode di sini…" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"></textarea>
+                    @error('skenario') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                    <div class="flex items-center justify-between">
+                        <p class="text-[11px] text-slate-400">Skenario dipakai sebagai sumber saat membuat shotlist dengan AI. Simpan dulu sebelum generate.</p>
+                        <button wire:click="simpanSkenario" wire:loading.attr="disabled" wire:target="simpanSkenario" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
+                            <span wire:loading.remove wire:target="simpanSkenario">Simpan Skenario</span>
+                            <span wire:loading wire:target="simpanSkenario">Menyimpan…</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         {{-- Impor CSV --}}
         @if ($bisaKelola)
@@ -96,7 +126,9 @@
                             <tr wire:key="sl-{{ $row->id }}" class="align-top transition hover:bg-slate-50">
                                 <td class="px-3 py-2.5 tabular-nums text-slate-400">{{ $row->urutan }}</td>
                                 @foreach ($kolom as $k)
-                                    <td class="max-w-[16rem] px-3 py-2.5 text-slate-700">
+                                    <td wire:key="sel-{{ $row->id }}-{{ $k->key }}"
+                                        @if ($bisaKelola) wire:dblclick="mulaiEditSel({{ $row->id }}, '{{ $k->key }}')" title="Klik 2× untuk edit" @endif
+                                        class="max-w-[16rem] px-3 py-2.5 text-slate-700 {{ $bisaKelola ? 'cursor-cell hover:bg-brand-50/40' : '' }}">
                                         <div class="line-clamp-3">{{ $row->data[$k->key] ?? '—' }}</div>
                                     </td>
                                 @endforeach
@@ -127,6 +159,87 @@
                 </table>
             </div>
         </div>
+
+        {{-- Modal edit satu sel (klik 2× pada tabel) — input mengikuti tipe kolom master --}}
+        @php $kolomSel = $editCellId ? $kolom->firstWhere('key', $editCellKey) : null; @endphp
+        @if ($editCellId && $kolomSel)
+            @php $barisSel = $rows->firstWhere('id', $editCellId); @endphp
+            <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-brand-950/60" wire:click="batalEditSel"></div>
+                <div class="relative w-full max-w-sm rounded-xl bg-white shadow-2xl">
+                    <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                        <div>
+                            <h2 class="text-base font-semibold text-slate-900">{{ $kolomSel->label }}</h2>
+                            <p class="text-[11px] text-slate-400">Baris #{{ $barisSel?->urutan }}@if ($kolomSel->peran) · peran: {{ $kolomSel->peran->value }}@endif</p>
+                        </div>
+                        <button wire:click="batalEditSel" class="text-slate-400 hover:text-slate-700">&times;</button>
+                    </div>
+                    <form wire:submit="simpanSel" class="space-y-4 px-5 py-5">
+                        @if ($kolomSel->tipe === 'select')
+                            <select wire:model="editCellValue" wire:keydown.escape="batalEditSel" x-init="$el.focus()"
+                                    class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                                <option value="">—</option>
+                                @foreach ($kolomSel->opsi ?? [] as $o)<option value="{{ $o }}">{{ $o }}</option>@endforeach
+                            </select>
+                        @elseif ($kolomSel->tipe === 'number')
+                            <input type="number" wire:model="editCellValue" wire:keydown.escape="batalEditSel"
+                                   x-init="$el.focus(); $el.select && $el.select()"
+                                   class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                        @elseif (mb_strlen((string) ($barisSel?->data[$editCellKey] ?? '')) > 20)
+                            {{-- Isi sel panjang (>20 karakter) → textarea agar nyaman disunting --}}
+                            <textarea wire:model="editCellValue" rows="5" wire:keydown.escape="batalEditSel"
+                                      x-init="$el.focus()"
+                                      class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"></textarea>
+                        @else
+                            <input type="text" wire:model="editCellValue" wire:keydown.escape="batalEditSel"
+                                   x-init="$el.focus(); $el.select && $el.select()"
+                                   class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                        @endif
+                        <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                            <button type="button" wire:click="batalEditSel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Batal</button>
+                            <button type="submit" class="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">Simpan</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+
+        {{-- Modal generate AI --}}
+        @if ($showAiForm)
+            <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-brand-950/60" wire:click="tutupFormAi"></div>
+                <div class="relative w-full max-w-md rounded-xl bg-white shadow-2xl">
+                    <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                        <h2 class="text-base font-semibold text-slate-900">Buat Shotlist dengan AI</h2>
+                        <button wire:click="tutupFormAi" class="text-slate-400 hover:text-slate-700">&times;</button>
+                    </div>
+                    <div class="space-y-4 px-5 py-5">
+                        <p class="text-sm text-slate-500">AI akan memecah <span class="font-medium text-slate-700">skenario episode</span> menjadi baris shotlist sesuai kolom studio (scene, shot, visual, deskripsi, dll). Hasil <span class="font-medium text-slate-700">ditambahkan sebagai baris baru</span> — periksa & sunting dulu sebelum Generate ke Produksi.</p>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Perkiraan durasi episode (menit)</label>
+                            <input type="number" min="1" max="240" wire:model="estimasiMenit" placeholder="mis. 7" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                            @error('estimasiMenit') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                            <p class="mt-1 text-[11px] text-slate-400">Dipakai AI untuk menentukan jumlah & durasi tiap shot (total ≈ durasi ini).</p>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Instruksi tambahan untuk AI <span class="text-slate-400">(opsional)</span></label>
+                            <textarea wire:model="instruksiAi" rows="4" placeholder="Contoh: Detail Visual wajib menyebut kostum, properti, dan pencahayaan tiap shot. Karakter yang muncul hanya Bima & Sari. VO memakai bahasa baku." class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('instruksiAi') border-red-400 @enderror"></textarea>
+                            @error('instruksiAi') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                            <p class="mt-1 text-[11px] text-slate-400">Arahan khusus per kolom (Detail Visual, VO, Karakter, dsb.) — AI wajib mengikutinya saat mengisi shotlist.</p>
+                        </div>
+                        @error('ai') <p class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                        <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                            <button type="button" wire:click="tutupFormAi" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Batal</button>
+                            <button wire:click="generateAi" wire:loading.attr="disabled" wire:target="generateAi" class="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50">
+                                <svg wire:loading wire:target="generateAi" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                <span wire:loading.remove wire:target="generateAi">Generate</span>
+                                <span wire:loading wire:target="generateAi">Menghasilkan… (±1–2 menit)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         {{-- Modal baris --}}
         @if ($showForm)

@@ -9,23 +9,24 @@
     $isLeadAny = $isAdmin || ($user && $user->isTeamLead()) || ($user && \App\Models\Proyek::where('team_lead_id', $user->id)->exists());
 
     // Nav berkelompok. 'show' (opsional) menyembunyikan item dari pengguna tertentu.
+    // Menu ringkas (permintaan 2026-07-09): Produksi 4 item, Monitoring 3 item.
+    // Seri diatur dari halaman Episode; Shotlist dari Pra-Produksi; Kelola Aset dari Aset Management.
     $navGroups = [
         'Produksi' => [
-            ['route' => 'tugas-saya', 'label' => 'Tugas Saya', 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01'],
             ['route' => 'proyek', 'label' => 'Episode', 'icon' => 'M7 4v16M17 4v16M3 8h4m10 0h4M3 16h4m10 0h4M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z'],
-            ['route' => 'seri', 'label' => 'Seri', 'icon' => 'M4 6h16M4 10h16M4 14h10M4 18h10', 'show' => $isAdmin],
-            ['route' => 'shotlist', 'label' => 'Shotlist', 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4'],
             ['route' => 'pra-produksi', 'label' => 'Pra-Produksi', 'icon' => 'M4 5h16M4 12h16M4 19h10'],
             ['route' => 'shot-matrix', 'label' => 'Produksi', 'icon' => 'M3 3h7v7H3V3zm0 11h7v7H3v-7zM14 3h7v7h-7V3zm0 11h7v7h-7v-7z'],
-            ['route' => 'aset-kelola', 'label' => 'Kelola Aset', 'icon' => 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'],
-            ['route' => 'aset', 'label' => 'Asset Library', 'icon' => 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
             ['route' => 'pasca-produksi', 'label' => 'Pasca-Produksi', 'icon' => 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z'],
+        ],
+        'Monitoring' => [
             ['route' => 'jadwal', 'label' => 'Timeline', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', 'show' => $isLeadAny],
+            ['route' => 'aset', 'label' => 'Aset Management', 'icon' => 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
+            // Log Book: supervisor/lead → review; freelance/intern → logbook harian.
+            ['route' => $bisaPemantauan ? 'logbook.review' : 'logbook', 'label' => 'Log Book', 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', 'show' => $punyaLogbook || $bisaPemantauan],
         ],
         'Tim & SDM' => [
             ['route' => 'tim', 'label' => 'Tim & Artis', 'icon' => 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6-2a3 3 0 10-3-3', 'show' => $bisaPemantauan],
             ['route' => 'kehadiran', 'label' => 'Absensi', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
-            ['route' => 'logbook', 'label' => 'Logbook', 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', 'show' => $punyaLogbook],
         ],
         'Konfigurasi' => [
             ['route' => 'pengaturan', 'label' => 'Konfigurasi Website', 'icon' => 'M21 12a9 9 0 11-18 0 9 9 0 0118 0zM3.6 9h16.8M3.6 15h16.8M11.5 3a17 17 0 000 18M12.5 3a17 17 0 010 18', 'show' => $isSuperAdmin],
@@ -35,7 +36,6 @@
         ],
         'Pemantauan' => [
             ['route' => 'monitoring', 'label' => 'Monitoring', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', 'show' => $bisaPemantauan],
-            ['route' => 'logbook.review', 'label' => 'Review Logbook', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', 'show' => $bisaPemantauan],
             ['route' => 'laporan-kehadiran', 'label' => 'Laporan Kehadiran', 'icon' => 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', 'show' => $bisaPemantauan],
             ['route' => 'laporan-progress', 'label' => 'Laporan Progress', 'icon' => 'M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z', 'show' => $bisaPemantauan],
         ],
@@ -50,6 +50,10 @@
         }
     }
     if (request()->routeIs('dashboard')) $current = 'Dashboard';
+    if (request()->routeIs('tugas-saya')) $current = 'Tugas Saya';
+    if (request()->routeIs('seri')) $current = 'Seri';
+    if (request()->routeIs('shotlist')) $current = 'Shotlist';
+    if (request()->routeIs('aset-kelola')) $current = 'Kelola Aset';
     if (request()->routeIs('tim.detail')) $current = 'Detail Artis';
     if (request()->routeIs('kehadiran.riwayat')) $current = 'Riwayat Kehadiran';
     if (request()->routeIs('pengaturan')) $current = 'Pengaturan';
@@ -128,6 +132,17 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
                 Dashboard
+            </a>
+
+            {{-- Tugas Saya (pintasan pribadi, berdiri sendiri seperti Dashboard) --}}
+            @php $tugasAktif = request()->routeIs('tugas-saya'); @endphp
+            <a href="{{ route('tugas-saya') }}" wire:navigate @click="sidebarOpen = false"
+               class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
+                      {{ $tugasAktif ? 'bg-gold-400 text-brand-900 shadow-sm' : 'text-brand-200 hover:bg-white/10 hover:text-white' }}">
+                <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                Tugas Saya
             </a>
 
             @foreach ($navGroups as $grup => $items)

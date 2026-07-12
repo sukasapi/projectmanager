@@ -27,6 +27,7 @@ class Proyek extends Model
     protected $fillable = [
         'name',
         'description',
+        'skenario',
         'status',
         'client_id',
         'series_id',

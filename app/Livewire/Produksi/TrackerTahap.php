@@ -161,6 +161,50 @@ abstract class TrackerTahap extends Component
         $this->resetErrorBag();
     }
 
+    // ---------- Skenario episode (tahap Script) ----------
+    // Naskah tersimpan di kf_proyek.skenario — sumber fitur "Buat dengan AI" di Shotlist.
+
+    public bool $showSkenario = false;
+
+    public string $skenario = '';
+
+    /** Boleh mengisi skenario: pengelola episode ATAU artis yang ditugaskan pada tahap Script. */
+    private function bolehIsiSkenario(): bool
+    {
+        if ($this->dapatKelola()) {
+            return true;
+        }
+
+        return TugasTahap::where('project_id', $this->proyekId)
+            ->where('artist_id', auth()->id())
+            ->whereHas('tahap', fn ($q) => $q->where('code', 'script'))
+            ->exists();
+    }
+
+    public function bukaSkenario(): void
+    {
+        abort_unless($this->bolehIsiSkenario(), 403);
+        $this->skenario = (string) Proyek::find($this->proyekId)?->skenario;
+        $this->resetErrorBag();
+        $this->showSkenario = true;
+    }
+
+    public function tutupSkenario(): void
+    {
+        $this->showSkenario = false;
+        $this->resetErrorBag();
+    }
+
+    public function simpanSkenario(): void
+    {
+        abort_unless($this->bolehIsiSkenario(), 403);
+        $this->validate(['skenario' => ['nullable', 'string', 'max:60000']], attributes: ['skenario' => 'skenario']);
+
+        Proyek::findOrFail($this->proyekId)->update(['skenario' => trim($this->skenario) ?: null]);
+        $this->showSkenario = false;
+        $this->dispatch('toast', message: 'Skenario disimpan.');
+    }
+
     // ---------- Workflow: Mulai → Propose → Approve / Reject ----------
 
     private function dapatKelola(): bool

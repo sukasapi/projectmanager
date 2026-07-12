@@ -123,6 +123,82 @@ class ShotlistTest extends TestCase
         $this->assertSame('Desa baru', $shot->fresh()->meta['visual'] ?? null);
     }
 
+    public function test_edit_sel_inline_dblclick(): void
+    {
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+        $ep = Proyek::create(['name' => 'Ep Sel', 'published_at' => now()]);
+        $row = ShotlistRow::create(['project_id' => $ep->id, 'urutan' => 1, 'data' => ['scene' => '01', 'visual' => 'Lama']]);
+
+        Livewire::actingAs($sup)->test(Shotlist::class)
+            ->set('proyekId', $ep->id)
+            ->call('mulaiEditSel', $row->id, 'visual')
+            ->assertSet('editCellValue', 'Lama')
+            ->set('editCellValue', 'Desa baru yang asri')
+            ->call('simpanSel')
+            ->assertSet('editCellId', null);
+
+        $fresh = $row->fresh();
+        $this->assertSame('Desa baru yang asri', $fresh->data['visual']);
+        $this->assertSame('01', $fresh->data['scene']); // sel lain tidak tersentuh
+    }
+
+    public function test_edit_sel_isi_panjang_memakai_textarea(): void
+    {
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+        $ep = Proyek::create(['name' => 'Ep Long', 'published_at' => now()]);
+        $row = ShotlistRow::create(['project_id' => $ep->id, 'urutan' => 1, 'data' => [
+            'visual' => 'Desa tradisional dengan sawah terasering yang luas', // > 20 karakter
+            'scene' => '01', // <= 20 karakter
+        ]]);
+
+        $c = Livewire::actingAs($sup)->test(Shotlist::class)->set('proyekId', $ep->id);
+
+        $c->call('mulaiEditSel', $row->id, 'visual')->assertSeeHtml('<textarea wire:model="editCellValue"');
+        $c->call('mulaiEditSel', $row->id, 'scene')
+            ->assertDontSeeHtml('<textarea wire:model="editCellValue"')
+            ->assertSeeHtml('<input type="text" wire:model="editCellValue"');
+    }
+
+    public function test_edit_sel_batal_dengan_escape(): void
+    {
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+        $ep = Proyek::create(['name' => 'Ep Esc', 'published_at' => now()]);
+        $row = ShotlistRow::create(['project_id' => $ep->id, 'urutan' => 1, 'data' => ['visual' => 'Tetap']]);
+
+        Livewire::actingAs($sup)->test(Shotlist::class)
+            ->set('proyekId', $ep->id)
+            ->call('mulaiEditSel', $row->id, 'visual')
+            ->set('editCellValue', 'Diubah lalu batal')
+            ->call('batalEditSel')
+            ->call('simpanSel'); // blur menyusul setelah Esc — tak boleh menyimpan
+
+        $this->assertSame('Tetap', $row->fresh()->data['visual']);
+    }
+
+    public function test_edit_sel_kolom_tak_dikenal_ditolak(): void
+    {
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+        $ep = Proyek::create(['name' => 'Ep Key', 'published_at' => now()]);
+        $row = ShotlistRow::create(['project_id' => $ep->id, 'urutan' => 1, 'data' => []]);
+
+        Livewire::actingAs($sup)->test(Shotlist::class)
+            ->set('proyekId', $ep->id)
+            ->call('mulaiEditSel', $row->id, 'kolom_asing')
+            ->assertNotFound();
+    }
+
+    public function test_artis_biasa_tidak_bisa_edit_sel(): void
+    {
+        $artis = User::factory()->create(['role' => 'Artis']);
+        $ep = Proyek::create(['name' => 'Ep SelX', 'published_at' => now()]);
+        $row = ShotlistRow::create(['project_id' => $ep->id, 'urutan' => 1, 'data' => ['visual' => 'Aman']]);
+
+        Livewire::actingAs($artis)->test(Shotlist::class)
+            ->set('proyekId', $ep->id)
+            ->call('mulaiEditSel', $row->id, 'visual')
+            ->assertForbidden();
+    }
+
     public function test_artis_biasa_tidak_bisa_kelola_shotlist(): void
     {
         $artis = User::factory()->create(['role' => 'Artis']);
