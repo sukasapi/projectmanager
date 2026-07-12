@@ -5,15 +5,25 @@
             <h1 class="text-xl font-bold tracking-tight text-slate-900">Episode</h1>
             <p class="text-sm text-slate-500">Kelola Project/Episode produksi dan kaitkan dengan klien.</p>
         </div>
-        @if ($bisaKelola)
-            <button wire:click="create"
-                    class="inline-flex items-center gap-1.5 rounded-lg bg-brand-700 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-800">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                Tambah Episode
-            </button>
-        @endif
+        <div class="flex flex-wrap items-center gap-2">
+            @can('manage-tim')
+                <a href="{{ route('seri') }}" wire:navigate
+                   class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                   title="Kelola seri (judul serial) untuk mengelompokkan episode">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h10M4 18h10" /></svg>
+                    Kelola Seri
+                </a>
+            @endcan
+            @if ($bisaKelola)
+                <button wire:click="create"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-brand-700 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-800">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Tambah Episode
+                </button>
+            @endif
+        </div>
     </div>
 
     {{-- Daftar episode --}}

@@ -46,4 +46,18 @@ return [
         'timeout' => env('GEMINI_TIMEOUT', 20),
     ],
 
+    /*
+     | 9Router — endpoint OpenAI-compatible untuk generate shotlist dari skenario
+     | (docs/2026-07-09_shotlist-ai.md). Base URL diarahkan ke tunnel 9Router
+     | (mis. https://xxx.trycloudflare.com/v1) atau layanan OpenAI-compatible lain.
+     | Isi NINEROUTER_API_KEY + NINEROUTER_MODEL untuk mengaktifkan; bila kosong,
+     | tombol AI tersembunyi. Aman cPanel (HTTP keluar biasa saat request, tanpa daemon).
+     */
+    'ninerouter' => [
+        'base_url' => env('NINEROUTER_BASE_URL', 'http://localhost:20128/v1'),
+        'key' => env('NINEROUTER_API_KEY'),
+        'model' => env('NINEROUTER_MODEL'),
+        'timeout' => env('NINEROUTER_TIMEOUT', 120),
+    ],
+
 ];

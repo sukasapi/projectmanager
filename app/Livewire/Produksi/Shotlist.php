@@ -11,17 +11,20 @@ use App\Models\Proyek;
 use App\Models\Shot;
 use App\Models\Shotlist as ShotlistRow;
 use App\Models\TugasTahap;
+use App\Services\NineRouterService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Throwable;
 
 /**
- * Shotlist per episode (petugas shotlist / pengelola). Isi manual atau impor CSV,
- * lalu "Generate ke Produksi" → membuat Adegan + Shot + shot-task yang dikerjakan tim.
- * Kolom mengikuti konfigurasi studio (KolomShotlist). Lihat requirement Shotlist 2026-07.
+ * Shotlist per episode (petugas shotlist / pengelola). Isi manual, impor CSV, atau
+ * generate dari skenario dengan AI (9Router), lalu "Generate ke Produksi" → membuat
+ * Adegan + Shot + shot-task yang dikerjakan tim. Kolom mengikuti konfigurasi studio
+ * (KolomShotlist). Lihat requirement Shotlist 2026-07 & docs/2026-07-09_shotlist-ai.md.
  */
 #[Layout('components.layouts.app')]
 class Shotlist extends Component
@@ -40,11 +43,23 @@ class Shotlist extends Component
     /** Berkas CSV untuk impor. */
     public $csv;
 
+    /** Skenario (naskah) episode — sumber shotlist manual maupun AI. */
+    public string $skenario = '';
+
+    public bool $showAiForm = false;
+
+    /** Perkiraan durasi episode (menit) untuk generate AI. */
+    public ?int $estimasiMenit = null;
+
+    /** Instruksi tambahan opsional untuk AI (mis. hal yang wajib dirinci di Detail Visual). */
+    public string $instruksiAi = '';
+
     public function mount(): void
     {
         $episode = (int) request()->integer('episode');
         if ($episode && $this->bolehAkses($episode)) {
             $this->proyekId = $episode;
+            $this->muatSkenario();
         }
     }
 
@@ -71,10 +86,28 @@ class Shotlist extends Component
             ->exists();
     }
 
+    /** Boleh mengisi skenario: pengelola episode ATAU petugas tahap Script/Shotlist. */
+    private function bolehIsiSkenario(): bool
+    {
+        $proyek = $this->proyekId ? Proyek::find($this->proyekId) : null;
+        if (! $proyek) {
+            return false;
+        }
+        if ($proyek->dapatDikelola(auth()->user())) {
+            return true;
+        }
+
+        return TugasTahap::where('project_id', $proyek->id)
+            ->where('artist_id', auth()->id())
+            ->whereHas('tahap', fn ($q) => $q->whereIn('code', ['script', 'shotlist']))
+            ->exists();
+    }
+
     public function pilihEpisode(int $id): void
     {
         if ($this->bolehAkses($id)) {
             $this->proyekId = $id;
+            $this->muatSkenario();
         }
     }
 
@@ -82,6 +115,13 @@ class Shotlist extends Component
     {
         $this->proyekId = null;
         $this->showForm = false;
+        $this->showAiForm = false;
+        $this->reset(['skenario', 'estimasiMenit']);
+    }
+
+    private function muatSkenario(): void
+    {
+        $this->skenario = (string) Proyek::find($this->proyekId)?->skenario;
     }
 
     /** @return Collection<int, KolomShotlist> */
@@ -135,11 +175,129 @@ class Shotlist extends Component
         $this->dispatch('toast', message: 'Baris dihapus.');
     }
 
+    // ---------- Edit satu sel via modal (klik 2× pada sel tabel) ----------
+    // Input di modal mengikuti tipe kolom master (KolomShotlist: text/number/select+opsi).
+
+    public ?int $editCellId = null;
+
+    public string $editCellKey = '';
+
+    public string $editCellValue = '';
+
+    public function mulaiEditSel(int $id, string $key): void
+    {
+        abort_unless($this->bolehKelola(), 403);
+        abort_unless($this->kolom()->contains('key', $key), 404);
+
+        $row = ShotlistRow::where('project_id', $this->proyekId)->findOrFail($id);
+        $this->editCellId = $row->id;
+        $this->editCellKey = $key;
+        $this->editCellValue = (string) ($row->data[$key] ?? '');
+    }
+
+    /** Simpan nilai sel yang sedang diedit di modal (submit / Enter). */
+    public function simpanSel(): void
+    {
+        // Abaikan bila tak ada sel aktif (mis. submit menyusul setelah batal).
+        if (! $this->editCellId || $this->editCellKey === '') {
+            return;
+        }
+        abort_unless($this->bolehKelola(), 403);
+
+        $row = ShotlistRow::where('project_id', $this->proyekId)->whereKey($this->editCellId)->first();
+        if ($row) {
+            $data = $row->data ?? [];
+            $data[$this->editCellKey] = trim($this->editCellValue);
+            $row->update(['data' => $data]);
+        }
+
+        $this->reset(['editCellId', 'editCellKey', 'editCellValue']);
+        $this->dispatch('toast', message: 'Sel disimpan.');
+    }
+
+    public function batalEditSel(): void
+    {
+        $this->reset(['editCellId', 'editCellKey', 'editCellValue']);
+    }
+
     public function cancel(): void
     {
         $this->showForm = false;
         $this->reset(['editingId', 'baris']);
         $this->resetErrorBag();
+    }
+
+    public function simpanSkenario(): void
+    {
+        abort_unless($this->bolehIsiSkenario(), 403);
+        $this->validate(['skenario' => ['nullable', 'string', 'max:60000']], attributes: ['skenario' => 'skenario']);
+
+        Proyek::findOrFail($this->proyekId)->update(['skenario' => trim($this->skenario) ?: null]);
+        $this->dispatch('toast', message: 'Skenario disimpan.');
+    }
+
+    /** Buka form generate AI — mensyaratkan skenario sudah tersimpan. */
+    public function bukaFormAi(): void
+    {
+        abort_unless($this->bolehKelola(), 403);
+
+        if (trim((string) Proyek::findOrFail($this->proyekId)->skenario) === '') {
+            $this->dispatch('toast', message: 'Isi & simpan skenario dulu sebelum membuat shotlist dengan AI.', icon: 'error');
+
+            return;
+        }
+
+        $this->resetErrorBag();
+        $this->showAiForm = true;
+    }
+
+    public function tutupFormAi(): void
+    {
+        $this->showAiForm = false;
+        $this->reset(['estimasiMenit', 'instruksiAi']);
+        $this->resetErrorBag();
+    }
+
+    /**
+     * Generate baris shotlist dari skenario via AI (9Router). Hasil DITAMBAHKAN
+     * sebagai baris baru (tidak menghapus yang ada) agar bisa diperiksa/disunting
+     * sebelum "Generate ke Produksi".
+     */
+    public function generateAi(NineRouterService $ai): void
+    {
+        abort_unless($this->bolehKelola(), 403);
+        $this->validate(
+            [
+                'estimasiMenit' => ['required', 'integer', 'min:1', 'max:240'],
+                'instruksiAi' => ['nullable', 'string', 'max:2000'],
+            ],
+            attributes: ['estimasiMenit' => 'perkiraan durasi', 'instruksiAi' => 'instruksi tambahan'],
+        );
+
+        $proyek = Proyek::findOrFail($this->proyekId);
+        $skenario = trim((string) $proyek->skenario);
+        if ($skenario === '') {
+            $this->addError('ai', 'Skenario episode masih kosong — isi & simpan dulu.');
+
+            return;
+        }
+
+        try {
+            $rows = $ai->generateShotlist($skenario, $this->estimasiMenit * 60, $this->kolom(), trim($this->instruksiAi) ?: null);
+        } catch (Throwable $e) {
+            report($e);
+            $this->addError('ai', 'Gagal generate shotlist: '.$e->getMessage());
+
+            return;
+        }
+
+        $urut = (int) ShotlistRow::where('project_id', $proyek->id)->max('urutan');
+        foreach ($rows as $data) {
+            ShotlistRow::create(['project_id' => $proyek->id, 'urutan' => ++$urut, 'data' => $data]);
+        }
+
+        $this->tutupFormAi();
+        $this->dispatch('toast', message: count($rows).' baris shotlist dihasilkan AI — periksa & sunting sebelum Generate ke Produksi.');
     }
 
     /** Impor baris dari berkas CSV; header dicocokkan ke label/kunci kolom. */
@@ -267,19 +425,26 @@ class Shotlist extends Component
             return view('livewire.produksi.shotlist', ['episodes' => $episodes]);
         }
 
+        // value() ikut cast model → bisa berupa enum TaskStatus; normalkan (string dari
+        // driver tertentu tetap ditangani via tryFrom).
         $shotlistStatus = TugasTahap::where('project_id', $this->proyekId)
             ->whereHas('tahap', fn ($q) => $q->where('code', 'shotlist'))
             ->value('status');
+        if (is_string($shotlistStatus)) {
+            $shotlistStatus = TaskStatus::tryFrom($shotlistStatus);
+        }
 
         return view('livewire.produksi.shotlist', [
             'proyek' => Proyek::findOrFail($this->proyekId),
             'bisaKelola' => $this->bolehKelola(),
+            'bisaIsiSkenario' => $this->bolehIsiSkenario(),
+            'aiAktif' => app(NineRouterService::class)->aktif(),
             'kolom' => $this->kolom(),
             'rows' => ShotlistRow::where('project_id', $this->proyekId)->orderBy('urutan')->get(),
             'belumDigenerate' => ShotlistRow::where('project_id', $this->proyekId)->whereNull('shot_id')->count(),
             // Status tahap Shotlist (pra-produksi) untuk isyarat: generate idealnya setelah disetujui.
-            'shotlistDisetujui' => $shotlistStatus === TaskStatus::APPROVED->value,
-            'shotlistStatusLabel' => $shotlistStatus ? TaskStatus::from($shotlistStatus)->label() : null,
+            'shotlistDisetujui' => $shotlistStatus === TaskStatus::APPROVED,
+            'shotlistStatusLabel' => $shotlistStatus?->label(),
         ]);
     }
 }

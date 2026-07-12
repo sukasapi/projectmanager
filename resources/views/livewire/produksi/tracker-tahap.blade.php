@@ -108,6 +108,16 @@
                                             $bisaKerja = $row && ($milikSaya || $dapatReview) && $proyek->isPublished();
                                         @endphp
                                         <div class="flex items-center justify-center gap-1">
+                                            @if ($tahap->code === 'shotlist' && ($dapatKelola || ($row?->artist_id === auth()->id())))
+                                                <a href="{{ route('shotlist') }}?episode={{ $proyek->id }}" wire:navigate class="rounded-md bg-violet-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-700" title="Buka halaman Shotlist episode ini (manual / AI)">
+                                                    Buka Shotlist
+                                                </a>
+                                            @endif
+                                            @if ($tahap->code === 'script' && ($dapatKelola || ($row?->artist_id === auth()->id())))
+                                                <button wire:click="bukaSkenario" class="rounded-md bg-violet-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-700" title="Tulis/ubah skenario (naskah) episode — dipakai fitur Buat Shotlist dengan AI">
+                                                    Skenario{{ filled($proyek->skenario) ? ' ✓' : '' }}
+                                                </button>
+                                            @endif
                                             @if ($bisaKerja && $st === \App\Enums\TaskStatus::NOT_STARTED)
                                                 <button wire:click="mulai({{ $row->id }})" class="rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700">Mulai</button>
                                             @elseif ($bisaKerja && $st === \App\Enums\TaskStatus::IN_PROGRESS)
@@ -210,6 +220,31 @@
                     <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
                         <button type="button" wire:click="cancel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Batal</button>
                         <button type="submit" class="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+
+    {{-- Modal skenario (tahap Script) --}}
+    @if ($showSkenario)
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-brand-950/60" wire:click="tutupSkenario"></div>
+            <div class="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                    <h2 class="text-base font-semibold text-slate-900">Skenario Episode</h2>
+                    <button wire:click="tutupSkenario" class="text-slate-400 hover:text-slate-700">&times;</button>
+                </div>
+                <form wire:submit="simpanSkenario" class="space-y-3 px-5 py-5">
+                    <textarea wire:model="skenario" rows="14" placeholder="Tempel / tulis skenario (naskah) episode di sini…" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('skenario') border-red-400 @enderror"></textarea>
+                    @error('skenario') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                    <p class="text-[11px] text-slate-400">Skenario tersimpan pada episode dan dipakai sebagai sumber fitur <span class="font-medium">"Buat dengan AI"</span> di halaman Shotlist.</p>
+                    <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                        <button type="button" wire:click="tutupSkenario" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Batal</button>
+                        <button type="submit" class="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">
+                            <span wire:loading.remove wire:target="simpanSkenario">Simpan Skenario</span>
+                            <span wire:loading wire:target="simpanSkenario">Menyimpan…</span>
+                        </button>
                     </div>
                 </form>
             </div>
