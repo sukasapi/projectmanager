@@ -155,7 +155,6 @@
                             <div class="flex gap-2">
                                 <button type="button" wire:click="tutupImpor" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Batal</button>
                                 <button x-data
-                                        x-on:shotlist-impor-selesai.window="window.Swal && window.Swal.close()"
                                         x-on:click="
                                             window.Swal.fire({
                                                 title: 'Mengimpor CSV…',
@@ -167,7 +166,8 @@
                                                 allowEscapeKey: false,
                                                 showConfirmButton: false,
                                             });
-                                            $wire.importCsv();
+                                            {{-- Tutup via promise, bukan event: tombol ini ikut terhapus saat modal impor ditutup sehingga listener event tidak sempat jalan. --}}
+                                            $wire.importCsv().finally(() => window.Swal && window.Swal.close());
                                         "
                                         wire:loading.attr="disabled" wire:target="importCsv,csv"
                                         class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
