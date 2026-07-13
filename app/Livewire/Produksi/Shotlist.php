@@ -591,6 +591,26 @@ TEKS;
     }
 
     /**
+     * Semua kolom yang menunjukkan durasi (peran DURATION atau label/key mengandung
+     * dur/duration) beserta label pendeknya, untuk rincian durasi di tree & rekap.
+     *
+     * @return array<string, string> key kolom => label pendek (mis. 'dur_vo' => 'VO')
+     */
+    private function kolomDurasi(): array
+    {
+        return $this->kolom()
+            ->filter(fn ($k) => $k->peran === PeranKolomShotlist::DURATION
+                || Str::contains(Str::lower($k->key), 'dur')
+                || Str::contains(Str::lower($k->label), ['duration', 'durasi']))
+            ->mapWithKeys(function ($k) {
+                $pendek = trim((string) preg_replace('/\b(duration|durasi)\b|\(s\)/i', '', $k->label), " -–·\t");
+
+                return [$k->key => $pendek !== '' ? $pendek : $k->label];
+            })
+            ->all();
+    }
+
+    /**
      * Susun baris menjadi pohon Scene → grup VO → shot untuk tampilan tree.
      * Aturan: baris diurutkan sesuai 'urutan'; VO hanya ditulis pada shot pertama,
      * baris berikutnya dengan VO kosong dianggap masih memakai VO yang sama
@@ -602,6 +622,8 @@ TEKS;
     private function pohon(Collection $rows): array
     {
         ['scene' => $sceneKey, 'dur' => $durKey, 'vo' => $voKey] = $this->kunciTree();
+        $kolomDurasi = $this->kolomDurasi();
+        $durasiKosong = array_fill_keys(array_keys($kolomDurasi), 0);
 
         $pohon = [];
         foreach ($rows as $row) {
@@ -613,7 +635,7 @@ TEKS;
             // Scene baru → node baru (scene sama tapi terpisah urutannya tetap digabung ke node terakhirnya).
             $idxScene = count($pohon) - 1;
             if ($idxScene < 0 || $pohon[$idxScene]['scene'] !== $scene) {
-                $pohon[] = ['scene' => $scene, 'detik' => 0, 'grup' => []];
+                $pohon[] = ['scene' => $scene, 'detik' => 0, 'durasi' => $durasiKosong, 'grup' => []];
                 $idxScene = count($pohon) - 1;
             }
 
@@ -627,6 +649,11 @@ TEKS;
             $pohon[$idxScene]['grup'][$idxGrup]['rows'][] = $row;
             $pohon[$idxScene]['grup'][$idxGrup]['detik'] += $detik;
             $pohon[$idxScene]['detik'] += $detik;
+
+            // Rincian per kolom durasi (VO / Animate / Realtime / dll).
+            foreach (array_keys($kolomDurasi) as $key) {
+                $pohon[$idxScene]['durasi'][$key] += (int) ($data[$key] ?? 0);
+            }
         }
 
         return $pohon;
@@ -644,6 +671,7 @@ TEKS;
         $styleId = $this->styleId();
         $sceneKey = KolomShotlist::keyBerperan(PeranKolomShotlist::SCENE, $styleId);
         $durKey = KolomShotlist::keyBerperan(PeranKolomShotlist::DURATION, $styleId);
+        $kolomDurasi = $this->kolomDurasi();
 
         $scenes = $sceneKey
             ? $rows->map(fn ($r) => trim((string) ($r->data[$sceneKey] ?? '')))->filter()->unique()->count()
@@ -652,11 +680,25 @@ TEKS;
             ? (int) $rows->sum(fn ($r) => (int) ($r->data[$durKey] ?? 0))
             : 0;
 
+        // Rincian total per kolom durasi (VO / Animate / Realtime / dll) + tandai kolom utama.
+        $durasi = [];
+        foreach ($kolomDurasi as $key => $label) {
+            $total = (int) $rows->sum(fn ($r) => (int) ($r->data[$key] ?? 0));
+            $durasi[] = [
+                'key' => $key,
+                'label' => $label,
+                'detik' => $total,
+                'menit' => intdiv($total, 60).':'.str_pad((string) ($total % 60), 2, '0', STR_PAD_LEFT),
+                'utama' => $key === $durKey,
+            ];
+        }
+
         return [
             'scene' => $scenes,
             'shot' => $rows->count(),
             'detik' => $detik,
             'menit' => intdiv($detik, 60).':'.str_pad((string) ($detik % 60), 2, '0', STR_PAD_LEFT),
+            'durasi' => $durasi,
         ];
     }
 
@@ -691,6 +733,7 @@ TEKS;
             'rows' => $rows,
             'pohon' => $this->pohon($rows),
             'kunciTree' => $this->kunciTree(),
+            'kolomDurasi' => $this->kolomDurasi(),
             'rekap' => $this->rekap($rows),
             'belumDigenerate' => ShotlistRow::where('project_id', $this->proyekId)->whereNull('shot_id')->count(),
             // Status tahap Shotlist (pra-produksi) untuk isyarat: generate idealnya setelah disetujui.

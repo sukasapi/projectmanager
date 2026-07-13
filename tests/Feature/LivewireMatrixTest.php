@@ -351,6 +351,36 @@ class LivewireMatrixTest extends TestCase
             ->assertSee('Scene 01');
     }
 
+    public function test_modal_detail_referensi_shotlist_menampilkan_meta(): void
+    {
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+        $scene = $this->scene();
+        $shot = app(CreateShot::class)->handle(['scene_id' => $scene->id, 'shot_code' => 'SC01_SH01', 'duration_seconds' => 30]);
+        $shot->update(['meta' => ['vo' => 'Narasi pembuka episode', 'visual' => 'Kamera wide dari belakang']]);
+
+        Livewire::actingAs($sup)->test(ShotMatrix::class)
+            ->set('proyekId', $scene->project_id)
+            ->call('bukaDetailShot', $shot->id)
+            ->assertSet('detailShotId', $shot->id)
+            ->assertSee('Referensi Shotlist')
+            ->assertSee('Narasi pembuka episode')
+            ->call('tutupDetailShot')
+            ->assertSet('detailShotId', null);
+    }
+
+    public function test_detail_shot_episode_lain_ditolak(): void
+    {
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+        $sceneA = $this->scene();
+        $sceneB = $this->scene();
+        $shotLain = app(CreateShot::class)->handle(['scene_id' => $sceneB->id, 'shot_code' => 'SC01_SH01', 'duration_seconds' => 10]);
+
+        Livewire::actingAs($sup)->test(ShotMatrix::class)
+            ->set('proyekId', $sceneA->project_id)
+            ->call('bukaDetailShot', $shotLain->id)
+            ->assertStatus(404);
+    }
+
     public function test_assign_massal_ke_semua_shot_pada_tahap(): void
     {
         $scene = $this->scene();
