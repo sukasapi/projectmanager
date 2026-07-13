@@ -83,6 +83,9 @@ class ShotlistAiTest extends TestCase
         $sup = User::factory()->create(['role' => 'Supervisor']);
         $ep = Proyek::create(['name' => 'Ep AI', 'published_at' => now(), 'skenario' => 'Bima berpetualang ke bukit.']);
 
+        // Baris lama harus dikosongkan otomatis saat generate AI (hasil menggantikan, bukan menumpuk).
+        ShotlistRow::create(['project_id' => $ep->id, 'urutan' => 1, 'data' => ['scene' => 'Scene 99', 'shot_no' => 'LAMA_SH010']]);
+
         Livewire::actingAs($sup)->test(Shotlist::class)
             ->set('proyekId', $ep->id)
             ->call('bukaFormAi')
@@ -97,6 +100,8 @@ class ShotlistAiTest extends TestCase
         $this->assertSame('SC01_SH010', $row->data['shot_no']);
         $this->assertSame('Desa pagi hari', $row->data['visual']);
         $this->assertNull($row->shot_id); // belum di-generate ke Produksi (masih bisa disunting)
+        // Baris lama tak lagi tampil (soft delete).
+        $this->assertSame(0, ShotlistRow::where('project_id', $ep->id)->where('data->shot_no', 'LAMA_SH010')->count());
     }
 
     public function test_instruksi_tambahan_diteruskan_ke_prompt_ai(): void

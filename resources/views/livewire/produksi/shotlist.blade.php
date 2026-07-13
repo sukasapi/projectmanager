@@ -53,22 +53,57 @@
             @endif
         </div>
 
-        {{-- Skenario episode (sumber shotlist manual maupun AI) --}}
-        @if ($bisaIsiSkenario)
-            <div x-data="{ open: {{ trim($skenario) === '' ? 'true' : 'false' }} }" class="rounded-xl border border-slate-200 bg-white shadow-sm">
-                <button type="button" x-on:click="open = !open" class="flex w-full items-center justify-between px-4 py-3 text-left">
-                    <span class="text-sm font-semibold text-slate-700">Skenario Episode</span>
-                    <span class="flex items-center gap-2">
-                        <span class="text-[11px] text-slate-400">{{ trim($skenario) === '' ? 'belum diisi' : 'terisi' }}</span>
-                        <svg class="h-4 w-4 text-slate-400 transition" :class="open && 'rotate-180'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                    </span>
-                </button>
-                <div x-show="open" class="space-y-2 border-t border-slate-100 px-4 py-3">
-                    <textarea wire:model="skenario" rows="8" placeholder="Tempel / tulis skenario (naskah) episode di sini…" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"></textarea>
-                    @error('skenario') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
-                    <div class="flex items-center justify-between">
-                        <p class="text-[11px] text-slate-400">Skenario dipakai sebagai sumber saat membuat shotlist dengan AI. Simpan dulu sebelum generate.</p>
-                        <button wire:click="simpanSkenario" wire:loading.attr="disabled" wire:target="simpanSkenario" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
+        {{-- Kartu ringkas satu baris: Skenario Episode & Impor CSV (klik → modal) --}}
+        @if ($bisaIsiSkenario || $bisaKelola)
+            <div class="grid gap-3 sm:grid-cols-2">
+                @if ($bisaIsiSkenario)
+                    <button type="button" wire:click="bukaSkenario" class="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-brand-400 hover:shadow">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm font-semibold text-slate-800 group-hover:text-brand-700">Skenario Episode</span>
+                            <span class="block truncate text-[11px] text-slate-400">{{ trim($skenario) === '' ? 'Belum diisi — klik untuk menulis naskah.' : Str::limit(trim($skenario), 70) }}</span>
+                        </span>
+                        <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium {{ trim($skenario) === '' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700' }}">{{ trim($skenario) === '' ? 'belum diisi' : 'terisi' }}</span>
+                    </button>
+                @endif
+                @if ($bisaKelola)
+                    <button type="button" wire:click="bukaImpor" class="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-brand-400 hover:shadow">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15M9 12l3 3m0 0l3-3m-3 3V2.25" /></svg>
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm font-semibold text-slate-800 group-hover:text-brand-700">Impor CSV</span>
+                            <span class="block truncate text-[11px] text-slate-400">Unggah CSV — hasil menggantikan shotlist yang ada.</span>
+                        </span>
+                        @if ($shotlistStatusLabel)
+                            <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium {{ $shotlistDisetujui ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700' }}">{{ $shotlistStatusLabel }}</span>
+                        @endif
+                    </button>
+                @endif
+            </div>
+        @endif
+
+        {{-- Modal Skenario Episode --}}
+        @if ($showSkenarioModal)
+            <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-brand-950/60" wire:click="tutupSkenario"></div>
+                <div class="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+                    <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                        <div>
+                            <h2 class="text-base font-semibold text-slate-900">Skenario Episode</h2>
+                            <p class="text-[11px] text-slate-400">Skenario dipakai sebagai sumber saat membuat shotlist dengan AI.</p>
+                        </div>
+                        <button wire:click="tutupSkenario" class="text-slate-400 hover:text-slate-700">&times;</button>
+                    </div>
+                    <div class="flex-1 space-y-2 overflow-y-auto px-5 py-4">
+                        <textarea wire:model="skenario" rows="14" placeholder="Tempel / tulis skenario (naskah) episode di sini…" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"></textarea>
+                        @error('skenario') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div class="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
+                        <button type="button" wire:click="tutupSkenario" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Batal</button>
+                        <button wire:click="simpanSkenario" wire:loading.attr="disabled" wire:target="simpanSkenario" class="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50">
                             <span wire:loading.remove wire:target="simpanSkenario">Simpan Skenario</span>
                             <span wire:loading wire:target="simpanSkenario">Menyimpan…</span>
                         </button>
@@ -77,38 +112,199 @@
             </div>
         @endif
 
-        {{-- Impor CSV --}}
-        @if ($bisaKelola)
-            <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div class="flex flex-wrap items-end gap-3">
-                    <div class="flex-1">
-                        <label class="mb-1 block text-sm font-medium text-slate-700">Impor CSV</label>
-                        <input type="file" wire:model="csv" accept=".csv,text/csv" class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand-700 hover:file:bg-brand-100">
-                        @error('csv') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        <p class="mt-1 text-[11px] text-slate-400">Header CSV dicocokkan otomatis ke nama kolom (koma / titik-koma). Kolom yang tak cocok diabaikan.</p>
+        {{-- Modal Impor CSV --}}
+        @if ($showImporModal)
+            <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-brand-950/60" wire:click="tutupImpor"></div>
+                <div class="relative w-full max-w-lg rounded-xl bg-white shadow-2xl">
+                    <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                        <div>
+                            <h2 class="text-base font-semibold text-slate-900">Impor CSV</h2>
+                            <p class="text-[11px] text-slate-400">Hasil impor <span class="font-medium text-rose-500">menggantikan shotlist yang ada</span> (ada pratinjau dulu).</p>
+                        </div>
+                        <button wire:click="tutupImpor" class="text-slate-400 hover:text-slate-700">&times;</button>
                     </div>
-                    <button wire:click="unduhTemplate" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" title="Unduh template CSV berisi header kolom studio">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                        Template
-                    </button>
-                    <button wire:click="importCsv" wire:loading.attr="disabled" wire:target="importCsv,csv" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
-                        <span wire:loading.remove wire:target="importCsv">Impor</span>
-                        <span wire:loading wire:target="importCsv">Mengimpor…</span>
-                    </button>
+                    <div class="space-y-4 px-5 py-5">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Berkas CSV</label>
+                            <input type="file" wire:model="csv" accept=".csv,text/csv" class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand-700 hover:file:bg-brand-100">
+                            @error('csv') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                            <p class="mt-1 text-[11px] text-slate-400">Header CSV dicocokkan otomatis ke nama kolom (koma / titik-koma). Kolom yang tak cocok diabaikan.</p>
+                        </div>
+                        @if ($shotlistStatusLabel)
+                            <p class="text-[11px] {{ $shotlistDisetujui ? 'text-green-600' : 'text-amber-600' }}">
+                                Tahap Shotlist (Pra-Produksi): <span class="font-semibold">{{ $shotlistStatusLabel }}</span>{{ $shotlistDisetujui ? ' — siap di-generate.' : ' — sebaiknya disetujui dulu sebelum generate.' }}
+                            </p>
+                        @endif
+                        <div class="flex items-center justify-between gap-2 border-t border-slate-100 pt-4">
+                            <div x-data="{ open: false }" class="relative">
+                                <button type="button" x-on:click="open = !open" x-on:click.outside="open = false" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" title="Unduh template CSV berisi header kolom studio">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    Template
+                                    <svg class="h-3.5 w-3.5 text-slate-400 transition" :class="open && 'rotate-180'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                                </button>
+                                <div x-show="open" x-cloak class="absolute bottom-full left-0 z-20 mb-1 w-52 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                                    <button type="button" x-on:click="open = false; $wire.unduhTemplate('koma')" class="block w-full px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-50">
+                                        Pemisah koma <span class="font-mono text-slate-400">(,)</span>
+                                    </button>
+                                    <button type="button" x-on:click="open = false; $wire.unduhTemplate('titik-koma')" class="block w-full px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-50">
+                                        Pemisah titik-koma <span class="font-mono text-slate-400">(;)</span> <span class="text-[10px] text-slate-400">— Excel ID</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="button" wire:click="tutupImpor" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Batal</button>
+                                <button x-data
+                                        x-on:shotlist-impor-selesai.window="window.Swal && window.Swal.close()"
+                                        x-on:click="
+                                            window.Swal.fire({
+                                                title: 'Mengimpor CSV…',
+                                                html: `Membaca & mencocokkan kolom shotlist.
+                                                    <div style='margin-top:16px;height:8px;width:100%;overflow:hidden;border-radius:9999px;background:#e2e8f0'>
+                                                        <div style='height:100%;width:35%;border-radius:9999px;background:#2b4f62;animation:slImporBar 1.1s ease-in-out infinite'></div>
+                                                    </div>`,
+                                                allowOutsideClick: false,
+                                                allowEscapeKey: false,
+                                                showConfirmButton: false,
+                                            });
+                                            $wire.importCsv();
+                                        "
+                                        wire:loading.attr="disabled" wire:target="importCsv,csv"
+                                        class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
+                                    <span wire:loading.remove wire:target="importCsv">Impor</span>
+                                    <span wire:loading wire:target="importCsv">Mengimpor…</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <style>
+                        @keyframes slImporBar {
+                            0% { margin-left: -35%; }
+                            100% { margin-left: 100%; }
+                        }
+                    </style>
                 </div>
-                @if ($shotlistStatusLabel)
-                    <p class="mt-2 text-[11px] {{ $shotlistDisetujui ? 'text-green-600' : 'text-amber-600' }}">
-                        Tahap Shotlist (Pra-Produksi): <span class="font-semibold">{{ $shotlistStatusLabel }}</span>{{ $shotlistDisetujui ? ' — siap di-generate.' : ' — sebaiknya disetujui dulu sebelum generate.' }}
-                    </p>
-                @endif
             </div>
         @endif
 
+        {{-- Toggle tampilan: tree (Scene → VO → Shot) atau tabel penuh --}}
+        <div class="flex items-center justify-between">
+            <div class="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 shadow-sm">
+                <button wire:click="gantiTampilan('tree')" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition {{ $tampilan === 'tree' ? 'bg-brand-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700' }}">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg>
+                    Tree
+                </button>
+                <button wire:click="gantiTampilan('tabel')" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition {{ $tampilan === 'tabel' ? 'bg-brand-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700' }}">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M3 6h18M3 18h18" /></svg>
+                    Tabel
+                </button>
+            </div>
+            @if ($tampilan === 'tree')
+                <p class="text-[11px] text-slate-400">Scene → VO → Shot · VO ditulis sekali dan berlaku untuk shot di bawahnya.</p>
+            @endif
+        </div>
+
+        @if ($tampilan === 'tree')
+        {{-- Tampilan tree: Scene → grup VO → shot --}}
+        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="max-h-[70vh] overflow-auto">
+                @php
+                    $kolomLain = $kolom->reject(fn ($k) => in_array($k->key, array_filter($kunciTree), true));
+                @endphp
+                @forelse ($pohon as $iScene => $scene)
+                    <div wire:key="tree-scene-{{ $iScene }}" x-data="{ open: false }" class="border-b border-slate-200 last:border-b-0">
+                        {{-- Node scene --}}
+                        <button type="button" x-on:click="open = !open" class="flex w-full items-center gap-2 bg-slate-50 px-4 py-2.5 text-left hover:bg-slate-100">
+                            <svg class="h-4 w-4 shrink-0 text-slate-400 transition" :class="open && 'rotate-90'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                            <span class="font-semibold text-slate-800">{{ $scene['scene'] }}</span>
+                            <span class="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold text-brand-700">{{ collect($scene['grup'])->sum(fn ($g) => count($g['rows'])) }} shot</span>
+                            @if ($scene['detik'] > 0)
+                                <span class="ml-auto text-xs tabular-nums text-slate-500">{{ intdiv($scene['detik'], 60) }}:{{ str_pad((string) ($scene['detik'] % 60), 2, '0', STR_PAD_LEFT) }} <span class="text-slate-400">({{ $scene['detik'] }} dtk)</span></span>
+                            @endif
+                        </button>
+
+                        <div x-show="open" x-cloak>
+                            @foreach ($scene['grup'] as $iGrup => $grup)
+                                <div wire:key="tree-grup-{{ $iScene }}-{{ $iGrup }}" class="border-t border-slate-100">
+                                    {{-- Node VO (sekali per grup, berlaku untuk semua shot di bawahnya) --}}
+                                    @if (trim($grup['vo']) !== '')
+                                        <div class="flex items-start gap-2 bg-violet-50/60 py-2 pl-10 pr-4">
+                                            <span class="mt-0.5 shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-700">VO</span>
+                                            <p class="whitespace-pre-line text-[13px] italic leading-relaxed text-violet-900">{{ $grup['vo'] }}</p>
+                                            <span class="ml-auto shrink-0 self-center text-[10px] text-violet-400">{{ count($grup['rows']) }} shot</span>
+                                        </div>
+                                    @endif
+
+                                    {{-- Shot di bawah VO --}}
+                                    @foreach ($grup['rows'] as $row)
+                                        <div wire:key="tree-row-{{ $row->id }}" class="group flex items-start gap-3 border-t border-slate-100 py-2.5 pl-14 pr-4 first:border-t-0 hover:bg-brand-50/40">
+                                            <div class="flex w-24 shrink-0 flex-col gap-1">
+                                                <span class="font-mono text-xs font-semibold text-slate-700">{{ $kunciTree['code'] && trim((string) ($row->data[$kunciTree['code']] ?? '')) !== '' ? $row->data[$kunciTree['code']] : '#'.$row->urutan }}</span>
+                                                @if ($kunciTree['dur'] && (int) ($row->data[$kunciTree['dur']] ?? 0) > 0)
+                                                    <span class="text-[11px] tabular-nums text-slate-400">{{ (int) $row->data[$kunciTree['dur']] }} dtk</span>
+                                                @endif
+                                                @if ($row->shot_id)
+                                                    <span class="inline-flex w-fit items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-medium text-green-700">✓ dibuat</span>
+                                                @else
+                                                    <span class="inline-flex w-fit items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">belum</span>
+                                                @endif
+                                            </div>
+                                            <div class="min-w-0 flex-1 space-y-1">
+                                                @foreach ($kolomLain as $k)
+                                                    @php $nilai = trim((string) ($row->data[$k->key] ?? '')); @endphp
+                                                    @if ($nilai !== '')
+                                                        <div wire:key="tree-sel-{{ $row->id }}-{{ $k->key }}"
+                                                             @if ($bisaKelola) wire:dblclick="mulaiEditSel({{ $row->id }}, '{{ $k->key }}')" title="Klik 2× untuk edit" @endif
+                                                             class="text-[13px] leading-relaxed text-slate-700 {{ $bisaKelola ? 'cursor-cell rounded px-1 -mx-1 hover:bg-brand-50' : '' }}">
+                                                            <span class="mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ $k->label }}:</span><span class="whitespace-pre-line">{{ $nilai }}</span>
+                                                        </div>
+                                                    @endif
+                                                @endforeach
+                                            </div>
+                                            @if ($bisaKelola)
+                                                <div class="flex shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                                                    <button wire:click="edit({{ $row->id }})" class="inline-flex rounded-md bg-slate-100 p-1.5 text-slate-500 hover:bg-brand-100 hover:text-brand-700" title="Edit">
+                                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                    </button>
+                                                    <button x-on:click="$confirm(@js('Hapus baris shotlist ini?'), { danger: true }).then(ok => ok && $wire.hapus({{ $row->id }}))" class="inline-flex rounded-md bg-slate-100 p-1.5 text-red-500 hover:bg-red-100 hover:text-red-700" title="Hapus">
+                                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.87 12.14A2 2 0 0116.14 21H7.86a2 2 0 01-1.99-1.86L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                    </button>
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @empty
+                    <div class="px-4 py-6 text-center text-xs text-slate-400">Belum ada baris shotlist. Tambah manual atau impor CSV.</div>
+                @endforelse
+            </div>
+
+            {{-- Rekap: total scene, total shot, total durasi --}}
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500">Total scene:</span>
+                    <span class="font-semibold tabular-nums text-slate-800">{{ $rekap['scene'] }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500">Total shot:</span>
+                    <span class="font-semibold tabular-nums text-slate-800">{{ $rekap['shot'] }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500">Durasi:</span>
+                    <span class="font-semibold tabular-nums text-slate-800">{{ number_format($rekap['detik'], 0, ',', '.') }} detik</span>
+                    <span class="text-slate-400">({{ $rekap['menit'] }} menit)</span>
+                </div>
+            </div>
+        </div>
+        @else
         {{-- Tabel shotlist --}}
         <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div class="overflow-x-auto">
+            <div class="max-h-[70vh] overflow-auto">
                 <table class="min-w-full text-sm">
-                    <thead>
+                    <thead class="sticky top-0 z-10">
                         <tr class="border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                             <th class="px-3 py-2.5 text-left font-semibold">#</th>
                             @foreach ($kolom as $k)
@@ -123,13 +319,13 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
-                            <tr wire:key="sl-{{ $row->id }}" class="align-top transition hover:bg-slate-50">
+                            <tr wire:key="sl-{{ $row->id }}" class="align-top transition odd:bg-white even:bg-slate-50/60 hover:bg-brand-50/40">
                                 <td class="px-3 py-2.5 tabular-nums text-slate-400">{{ $row->urutan }}</td>
                                 @foreach ($kolom as $k)
                                     <td wire:key="sel-{{ $row->id }}-{{ $k->key }}"
                                         @if ($bisaKelola) wire:dblclick="mulaiEditSel({{ $row->id }}, '{{ $k->key }}')" title="Klik 2× untuk edit" @endif
-                                        class="max-w-[16rem] px-3 py-2.5 text-slate-700 {{ $bisaKelola ? 'cursor-cell hover:bg-brand-50/40' : '' }}">
-                                        <div class="line-clamp-3">{{ $row->data[$k->key] ?? '—' }}</div>
+                                        class="max-w-[16rem] px-3 py-2.5 text-slate-700 {{ $bisaKelola ? 'cursor-cell hover:bg-brand-50' : '' }}">
+                                        <div class="line-clamp-3 whitespace-pre-line">{{ trim((string) ($row->data[$k->key] ?? '')) !== '' ? $row->data[$k->key] : '—' }}</div>
                                     </td>
                                 @endforeach
                                 <td class="px-3 py-2.5 text-center">
@@ -158,7 +354,25 @@
                     </tbody>
                 </table>
             </div>
+
+            {{-- Rekap: total scene, total shot, total durasi --}}
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500">Total scene:</span>
+                    <span class="font-semibold tabular-nums text-slate-800">{{ $rekap['scene'] }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500">Total shot:</span>
+                    <span class="font-semibold tabular-nums text-slate-800">{{ $rekap['shot'] }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500">Durasi:</span>
+                    <span class="font-semibold tabular-nums text-slate-800">{{ number_format($rekap['detik'], 0, ',', '.') }} detik</span>
+                    <span class="text-slate-400">({{ $rekap['menit'] }} menit)</span>
+                </div>
+            </div>
         </div>
+        @endif
 
         {{-- Modal edit satu sel (klik 2× pada tabel) — input mengikuti tipe kolom master --}}
         @php $kolomSel = $editCellId ? $kolom->firstWhere('key', $editCellKey) : null; @endphp
@@ -204,6 +418,57 @@
             </div>
         @endif
 
+        {{-- Modal pratinjau hasil impor CSV — konfirmasi sebelum dijadikan shotlist --}}
+        @if ($showPratinjauImpor)
+            <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-brand-950/60" wire:click="batalImpor"></div>
+                <div class="relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+                    <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                        <div>
+                            <h2 class="text-base font-semibold text-slate-900">Hasil Impor CSV</h2>
+                            <p class="text-[11px] text-slate-400">{{ count($pratinjauImpor) }} baris terbaca — periksa dulu, lalu klik "Jadikan Shotlist" untuk menyimpan.</p>
+                        </div>
+                        <button wire:click="batalImpor" class="text-slate-400 hover:text-slate-700">&times;</button>
+                    </div>
+                    <div class="flex-1 overflow-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="sticky top-0 z-10">
+                                <tr class="border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                                    <th class="px-3 py-2 text-left font-semibold">#</th>
+                                    @foreach ($kolom as $k)
+                                        <th class="whitespace-nowrap px-3 py-2 text-left font-semibold">{{ $k->label }}</th>
+                                    @endforeach
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                @foreach ($pratinjauImpor as $i => $data)
+                                    <tr wire:key="pi-{{ $i }}" class="align-top odd:bg-white even:bg-slate-50/60">
+                                        <td class="px-3 py-2 tabular-nums text-slate-400">{{ $i + 1 }}</td>
+                                        @foreach ($kolom as $k)
+                                            <td class="max-w-[14rem] px-3 py-2 text-slate-700">
+                                                <div class="line-clamp-3 whitespace-pre-line">{{ trim((string) ($data[$k->key] ?? '')) !== '' ? $data[$k->key] : '—' }}</div>
+                                            </td>
+                                        @endforeach
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
+                        <p class="text-[11px] text-slate-400"><span class="font-medium text-rose-500">Shotlist lama akan dikosongkan</span> dan diganti baris ini — belum ada yang tersimpan sampai dikonfirmasi.</p>
+                        <div class="flex gap-2">
+                            <button wire:click="batalImpor" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Batal</button>
+                            <button wire:click="konfirmasiImpor" wire:loading.attr="disabled" wire:target="konfirmasiImpor" class="inline-flex items-center gap-1.5 rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                <span wire:loading.remove wire:target="konfirmasiImpor">Jadikan Shotlist ({{ count($pratinjauImpor) }})</span>
+                                <span wire:loading wire:target="konfirmasiImpor">Menyimpan…</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         {{-- Modal generate AI --}}
         @if ($showAiForm)
             <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -214,18 +479,21 @@
                         <button wire:click="tutupFormAi" class="text-slate-400 hover:text-slate-700">&times;</button>
                     </div>
                     <div class="space-y-4 px-5 py-5">
-                        <p class="text-sm text-slate-500">AI akan memecah <span class="font-medium text-slate-700">skenario episode</span> menjadi baris shotlist sesuai kolom studio (scene, shot, visual, deskripsi, dll). Hasil <span class="font-medium text-slate-700">ditambahkan sebagai baris baru</span> — periksa & sunting dulu sebelum Generate ke Produksi.</p>
+                        <p class="text-sm text-slate-500">AI akan memecah <span class="font-medium text-slate-700">skenario episode</span> menjadi baris shotlist sesuai kolom studio (scene, shot, visual, deskripsi, dll). Hasil <span class="font-medium text-rose-600">menggantikan seluruh shotlist yang ada</span> (dikosongkan otomatis) — periksa & sunting dulu sebelum Generate ke Produksi.</p>
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-slate-700">Perkiraan durasi episode (menit)</label>
-                            <input type="number" min="1" max="240" wire:model="estimasiMenit" placeholder="mis. 7" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Perkiraan durasi episode (menit) <span class="text-slate-400">(opsional)</span></label>
+                            <input type="number" min="1" max="240" wire:model="estimasiMenit" placeholder="kosongkan agar AI menentukan sendiri" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
                             @error('estimasiMenit') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                            <p class="mt-1 text-[11px] text-slate-400">Dipakai AI untuk menentukan jumlah & durasi tiap shot (total ≈ durasi ini).</p>
+                            <p class="mt-1 text-[11px] text-slate-400">Bila diisi, total durasi shot ≈ durasi ini. Bila kosong, AI menentukan durasi tiap shot dari isi skenario.</p>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-slate-700">Instruksi tambahan untuk AI <span class="text-slate-400">(opsional)</span></label>
-                            <textarea wire:model="instruksiAi" rows="4" placeholder="Contoh: Detail Visual wajib menyebut kostum, properti, dan pencahayaan tiap shot. Karakter yang muncul hanya Bima & Sari. VO memakai bahasa baku." class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('instruksiAi') border-red-400 @enderror"></textarea>
+                            <div class="mb-1 flex items-center justify-between">
+                                <label class="block text-sm font-medium text-slate-700">Instruksi tambahan untuk AI</label>
+                                <button type="button" wire:click="resetInstruksiAi" class="text-[11px] font-medium text-brand-600 hover:underline" title="Kembalikan ke instruksi bawaan studio">Kembalikan default</button>
+                            </div>
+                            <textarea wire:model="instruksiAi" rows="10" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('instruksiAi') border-red-400 @enderror"></textarea>
                             @error('instruksiAi') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                            <p class="mt-1 text-[11px] text-slate-400">Arahan khusus per kolom (Detail Visual, VO, Karakter, dsb.) — AI wajib mengikutinya saat mengisi shotlist.</p>
+                            <p class="mt-1 text-[11px] text-slate-400">Instruksi bawaan (Storyboard Director, Realistic Cinematic) sudah terisi — sunting sesuai kebutuhan episode; AI wajib mengikutinya saat mengisi shotlist.</p>
                         </div>
                         @error('ai') <p class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{{ $message }}</p> @enderror
                         <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">

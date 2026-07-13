@@ -57,19 +57,76 @@ class ShotlistTest extends TestCase
         $sup = User::factory()->create(['role' => 'Supervisor']);
         $ep = Proyek::create(['name' => 'Ep SL', 'published_at' => now()]);
 
+        // Baris lama harus dikosongkan otomatis saat konfirmasi impor (hasil menggantikan, bukan menumpuk).
+        ShotlistRow::create(['project_id' => $ep->id, 'urutan' => 1, 'data' => ['scene' => 'Scene 99', 'shot_no' => 'LAMA_SH010']]);
+
         $csv = "Scene,Shot No#,Duration Animate (s),Visual\n01,01,5,Desa tradisional\n01,02,3,Bukit\n";
+        $file = UploadedFile::fake()->createWithContent('shotlist.csv', $csv);
+
+        $lw = Livewire::actingAs($sup)->test(Shotlist::class)
+            ->set('proyekId', $ep->id)
+            ->set('csv', $file)
+            ->call('importCsv')
+            ->assertHasNoErrors()
+            ->assertSet('showPratinjauImpor', true);
+
+        // Belum tersimpan / terhapus sebelum dikonfirmasi (pratinjau dulu).
+        $this->assertSame(1, ShotlistRow::where('project_id', $ep->id)->count());
+
+        $lw->call('konfirmasiImpor')->assertHasNoErrors()->assertSet('showPratinjauImpor', false);
+
+        $this->assertSame(2, ShotlistRow::where('project_id', $ep->id)->count());
+        $row = ShotlistRow::where('project_id', $ep->id)->orderBy('urutan')->first();
+        $this->assertSame('01', $row->data['scene']);
+        $this->assertSame('Desa tradisional', $row->data['visual']);
+        // Baris lama tak lagi tampil (soft delete).
+        $this->assertSame(0, ShotlistRow::where('project_id', $ep->id)->where('data->shot_no', 'LAMA_SH010')->count());
+    }
+
+    public function test_impor_csv_ansi_dinormalkan_ke_utf8(): void
+    {
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+        $ep = Proyek::create(['name' => 'Ep SL ANSI', 'published_at' => now()]);
+
+        // CSV ber-encoding Windows-1252 (é = \xE9) + BOM tidak ada — umum dari Excel Windows.
+        $csv = mb_convert_encoding("Scene,Shot No#,Visual\n01,01,Caf\u{E9} di tepi jalan\n", 'Windows-1252', 'UTF-8');
+        $file = UploadedFile::fake()->createWithContent('shotlist-ansi.csv', $csv);
+
+        $lw = Livewire::actingAs($sup)->test(Shotlist::class)
+            ->set('proyekId', $ep->id)
+            ->set('csv', $file)
+            ->call('importCsv')
+            ->assertHasNoErrors()
+            ->assertSet('showPratinjauImpor', true);
+
+        $lw->call('konfirmasiImpor')->assertHasNoErrors();
+
+        $row = ShotlistRow::where('project_id', $ep->id)->firstOrFail();
+        $this->assertSame("Caf\u{E9} di tepi jalan", $row->data['visual']);
+    }
+
+    public function test_impor_csv_batal_tidak_menyimpan(): void
+    {
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+        $ep = Proyek::create(['name' => 'Ep SL Batal', 'published_at' => now()]);
+
+        // Baris lama harus tetap utuh saat impor dibatalkan.
+        ShotlistRow::create(['project_id' => $ep->id, 'urutan' => 1, 'data' => ['scene' => 'Scene 99', 'shot_no' => 'LAMA_SH010']]);
+
+        $csv = "Scene,Shot No#,Visual\n01,01,Desa\n";
         $file = UploadedFile::fake()->createWithContent('shotlist.csv', $csv);
 
         Livewire::actingAs($sup)->test(Shotlist::class)
             ->set('proyekId', $ep->id)
             ->set('csv', $file)
             ->call('importCsv')
-            ->assertHasNoErrors();
+            ->assertSet('showPratinjauImpor', true)
+            ->call('batalImpor')
+            ->assertSet('showPratinjauImpor', false)
+            ->assertSet('pratinjauImpor', []);
 
-        $this->assertSame(2, ShotlistRow::where('project_id', $ep->id)->count());
-        $row = ShotlistRow::where('project_id', $ep->id)->orderBy('urutan')->first();
-        $this->assertSame('01', $row->data['scene']);
-        $this->assertSame('Desa tradisional', $row->data['visual']);
+        $this->assertSame(1, ShotlistRow::where('project_id', $ep->id)->count());
+        $this->assertSame('LAMA_SH010', ShotlistRow::where('project_id', $ep->id)->first()->data['shot_no']);
     }
 
     public function test_generate_ke_produksi_membuat_shot_dengan_meta(): void

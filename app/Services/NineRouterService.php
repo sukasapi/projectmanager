@@ -27,13 +27,14 @@ class NineRouterService
     /**
      * Pecah skenario menjadi baris-baris shotlist sesuai kolom studio yang aktif.
      *
+     * @param  int|null  $durasiTotalDetik  target total durasi; null = AI menentukan sendiri dari isi skenario
      * @param  Collection<int, KolomShotlist>  $kolom  kolom aktif (urut)
      * @param  string|null  $instruksiTambahan  arahan tambahan dari petugas (mis. hal yang wajib dirinci di Detail Visual)
      * @return array<int, array<string, string>> baris shotlist, key = key kolom
      *
      * @throws RuntimeException bila konfigurasi kosong atau respons tidak valid.
      */
-    public function generateShotlist(string $skenario, int $durasiTotalDetik, Collection $kolom, ?string $instruksiTambahan = null): array
+    public function generateShotlist(string $skenario, ?int $durasiTotalDetik, Collection $kolom, ?string $instruksiTambahan = null): array
     {
         if (! $this->aktif()) {
             throw new RuntimeException('NINEROUTER_API_KEY / NINEROUTER_MODEL belum diatur.');
@@ -78,7 +79,7 @@ class NineRouterService
     }
 
     /** @param  Collection<int, KolomShotlist>  $kolom */
-    private function susunInstruksi(string $skenario, int $durasiTotalDetik, Collection $kolom, ?string $instruksiTambahan = null): string
+    private function susunInstruksi(string $skenario, ?int $durasiTotalDetik, Collection $kolom, ?string $instruksiTambahan = null): string
     {
         $spek = $kolom->map(function (KolomShotlist $k) {
             $baris = "- \"{$k->key}\" ({$k->label}, tipe {$k->tipe}";
@@ -96,9 +97,12 @@ class NineRouterService
         })->implode("\n");
 
         $durKey = $kolom->first(fn ($k) => $k->peran?->value === 'duration')?->key;
-        $targetDurasi = $durKey
-            ? "Total nilai kolom \"{$durKey}\" seluruh baris harus mendekati {$durasiTotalDetik} detik."
-            : "Perkiraan total durasi episode: {$durasiTotalDetik} detik.";
+        $targetDurasi = match (true) {
+            $durasiTotalDetik !== null && $durKey !== null => "Total nilai kolom \"{$durKey}\" seluruh baris harus mendekati {$durasiTotalDetik} detik.",
+            $durasiTotalDetik !== null => "Perkiraan total durasi episode: {$durasiTotalDetik} detik.",
+            $durKey !== null => "Tentukan sendiri durasi tiap shot (kolom \"{$durKey}\") secara wajar berdasarkan isi skenario, VO, dan kebutuhan visual tiap adegan.",
+            default => 'Tentukan sendiri total durasi episode secara wajar berdasarkan isi skenario.',
+        };
 
         $arahan = filled($instruksiTambahan)
             ? "\n\nINSTRUKSI TAMBAHAN DARI PETUGAS (wajib diikuti saat mengisi kolom terkait):\n".trim($instruksiTambahan)
