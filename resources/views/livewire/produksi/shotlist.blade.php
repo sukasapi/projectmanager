@@ -70,7 +70,7 @@
                 <p class="min-w-0 flex-1 text-sm text-green-800">
                     Seluruh <span class="font-semibold">{{ $rows->count() }} baris</span> shotlist sudah di-generate menjadi shot di Produksi. Data kolom lain (VO, Visual, dll) tersimpan sebagai metadata shot — terlihat saat membuka panel review shot.
                 </p>
-                <a href="{{ route('shot-matrix') }}" wire:navigate
+                <a href="{{ route('shot-matrix') }}?episode={{ $proyekId }}" wire:navigate
                    class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700">
                     Buka Shot Matrix
                     <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
@@ -243,9 +243,17 @@
                             <svg class="h-4 w-4 shrink-0 text-slate-400 transition" :class="open && 'rotate-90'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
                             <span class="font-semibold text-slate-800">{{ $scene['scene'] }}</span>
                             <span class="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold text-brand-700">{{ collect($scene['grup'])->sum(fn ($g) => count($g['rows'])) }} shot</span>
-                            @if ($scene['detik'] > 0)
-                                <span class="ml-auto text-xs tabular-nums text-slate-500">{{ intdiv($scene['detik'], 60) }}:{{ str_pad((string) ($scene['detik'] % 60), 2, '0', STR_PAD_LEFT) }} <span class="text-slate-400">({{ $scene['detik'] }} dtk)</span></span>
-                            @endif
+                            {{-- Rincian durasi per jenis (VO / Animate / Realtime / dll) --}}
+                            <span class="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
+                                @foreach ($kolomDurasi as $kDur => $labelDur)
+                                    @php $d = (int) ($scene['durasi'][$kDur] ?? 0); @endphp
+                                    @if ($d > 0)
+                                        <span class="text-[11px] tabular-nums {{ $kDur === $kunciTree['dur'] ? 'font-semibold text-slate-700' : 'text-slate-400' }}" title="Total {{ $labelDur }} scene ini{{ $kDur === $kunciTree['dur'] ? ' — dipakai sebagai durasi shot di Produksi' : '' }}">
+                                            {{ $labelDur }}: {{ intdiv($d, 60) }}:{{ str_pad((string) ($d % 60), 2, '0', STR_PAD_LEFT) }} <span class="opacity-70">({{ $d }} dtk)</span>
+                                        </span>
+                                    @endif
+                                @endforeach
+                            </span>
                         </button>
 
                         <div x-show="open" x-cloak>
@@ -263,11 +271,15 @@
                                     {{-- Shot di bawah VO --}}
                                     @foreach ($grup['rows'] as $row)
                                         <div wire:key="tree-row-{{ $row->id }}" class="group flex items-start gap-3 border-t border-slate-100 py-2.5 pl-14 pr-4 first:border-t-0 hover:bg-brand-50/40">
-                                            <div class="flex w-24 shrink-0 flex-col gap-1">
+                                            <div class="flex w-28 shrink-0 flex-col gap-1">
                                                 <span class="font-mono text-xs font-semibold text-slate-700">{{ $kunciTree['code'] && trim((string) ($row->data[$kunciTree['code']] ?? '')) !== '' ? $row->data[$kunciTree['code']] : '#'.$row->urutan }}</span>
-                                                @if ($kunciTree['dur'] && (int) ($row->data[$kunciTree['dur']] ?? 0) > 0)
-                                                    <span class="text-[11px] tabular-nums text-slate-400">{{ (int) $row->data[$kunciTree['dur']] }} dtk</span>
-                                                @endif
+                                                {{-- Rincian tiap kolom durasi shot ini --}}
+                                                @foreach ($kolomDurasi as $kDur => $labelDur)
+                                                    @php $d = (int) ($row->data[$kDur] ?? 0); @endphp
+                                                    @if ($d > 0)
+                                                        <span class="text-[10px] tabular-nums {{ $kDur === $kunciTree['dur'] ? 'font-semibold text-slate-600' : 'text-slate-400' }}" title="{{ $labelDur }}{{ $kDur === $kunciTree['dur'] ? ' — dipakai sebagai durasi shot di Produksi' : '' }}">{{ $labelDur }}: {{ $d }} dtk</span>
+                                                    @endif
+                                                @endforeach
                                                 @if ($row->shot_id)
                                                     <span class="inline-flex w-fit items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-medium text-green-700">✓ dibuat</span>
                                                 @else
@@ -307,7 +319,7 @@
                 @endforelse
             </div>
 
-            {{-- Rekap: total scene, total shot, total durasi --}}
+            {{-- Rekap: total scene, total shot, rincian semua kolom durasi --}}
             <div class="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm">
                 <div class="flex items-center gap-1.5">
                     <span class="text-slate-500">Total scene:</span>
@@ -317,11 +329,22 @@
                     <span class="text-slate-500">Total shot:</span>
                     <span class="font-semibold tabular-nums text-slate-800">{{ $rekap['shot'] }}</span>
                 </div>
-                <div class="flex items-center gap-1.5">
-                    <span class="text-slate-500">Durasi:</span>
-                    <span class="font-semibold tabular-nums text-slate-800">{{ number_format($rekap['detik'], 0, ',', '.') }} detik</span>
-                    <span class="text-slate-400">({{ $rekap['menit'] }} menit)</span>
-                </div>
+                @forelse ($rekap['durasi'] as $d)
+                    <div class="flex items-center gap-1.5" title="Total kolom «{{ $d['label'] }}»{{ $d['utama'] ? ' — dipakai sebagai durasi shot saat Generate ke Produksi' : '' }}">
+                        <span class="text-slate-500">Durasi {{ $d['label'] }}:</span>
+                        <span class="font-semibold tabular-nums text-slate-800">{{ number_format($d['detik'], 0, ',', '.') }} dtk</span>
+                        <span class="text-slate-400">({{ $d['menit'] }} menit)</span>
+                        @if ($d['utama'])
+                            <span class="rounded bg-brand-100 px-1 py-0.5 text-[9px] font-semibold text-brand-700" title="Kolom durasi utama — nilai ini yang jadi duration shot di Produksi">utama</span>
+                        @endif
+                    </div>
+                @empty
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-slate-500">Durasi:</span>
+                        <span class="font-semibold tabular-nums text-slate-800">{{ number_format($rekap['detik'], 0, ',', '.') }} detik</span>
+                        <span class="text-slate-400">({{ $rekap['menit'] }} menit)</span>
+                    </div>
+                @endforelse
             </div>
         </div>
         @else
@@ -380,7 +403,7 @@
                 </table>
             </div>
 
-            {{-- Rekap: total scene, total shot, total durasi --}}
+            {{-- Rekap: total scene, total shot, rincian semua kolom durasi --}}
             <div class="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm">
                 <div class="flex items-center gap-1.5">
                     <span class="text-slate-500">Total scene:</span>
@@ -390,11 +413,22 @@
                     <span class="text-slate-500">Total shot:</span>
                     <span class="font-semibold tabular-nums text-slate-800">{{ $rekap['shot'] }}</span>
                 </div>
-                <div class="flex items-center gap-1.5">
-                    <span class="text-slate-500">Durasi:</span>
-                    <span class="font-semibold tabular-nums text-slate-800">{{ number_format($rekap['detik'], 0, ',', '.') }} detik</span>
-                    <span class="text-slate-400">({{ $rekap['menit'] }} menit)</span>
-                </div>
+                @forelse ($rekap['durasi'] as $d)
+                    <div class="flex items-center gap-1.5" title="Total kolom «{{ $d['label'] }}»{{ $d['utama'] ? ' — dipakai sebagai durasi shot saat Generate ke Produksi' : '' }}">
+                        <span class="text-slate-500">Durasi {{ $d['label'] }}:</span>
+                        <span class="font-semibold tabular-nums text-slate-800">{{ number_format($d['detik'], 0, ',', '.') }} dtk</span>
+                        <span class="text-slate-400">({{ $d['menit'] }} menit)</span>
+                        @if ($d['utama'])
+                            <span class="rounded bg-brand-100 px-1 py-0.5 text-[9px] font-semibold text-brand-700" title="Kolom durasi utama — nilai ini yang jadi duration shot di Produksi">utama</span>
+                        @endif
+                    </div>
+                @empty
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-slate-500">Durasi:</span>
+                        <span class="font-semibold tabular-nums text-slate-800">{{ number_format($rekap['detik'], 0, ',', '.') }} detik</span>
+                        <span class="text-slate-400">({{ $rekap['menit'] }} menit)</span>
+                    </div>
+                @endforelse
             </div>
         </div>
         @endif

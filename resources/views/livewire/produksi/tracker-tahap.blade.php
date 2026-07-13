@@ -148,6 +148,10 @@
                                                 </x-tombol-aksi>
                                             @elseif (! $row)
                                                 <span class="text-[11px] italic text-slate-400" title="Supervisor/Team Lead perlu meng-assign artis dulu">belum di-setup</span>
+                                            @elseif ($st === \App\Enums\TaskStatus::NOT_STARTED && ! $terlibat)
+                                                <span class="text-[11px] italic text-slate-400" title="Tombol Mulai hanya muncul untuk artis yang ditugaskan atau Supervisor/Team Lead episode ini">menunggu artis memulai</span>
+                                            @elseif ($st === \App\Enums\TaskStatus::IN_PROGRESS && ! $terlibat)
+                                                <span class="text-[11px] italic text-slate-400" title="Artis mengajukan review setelah selesai — barulah tombol Setujui/Tolak muncul untuk Supervisor/Team Lead">sedang dikerjakan</span>
                                             @elseif ($st === \App\Enums\TaskStatus::NOT_STARTED && $terlibat)
                                                 @if (! $proyek->isPublished())
                                                     <x-tombol-aksi variant="mulai" disabled reason="Episode belum dipublish">Mulai</x-tombol-aksi>

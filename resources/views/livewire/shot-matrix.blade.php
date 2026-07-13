@@ -149,6 +149,21 @@
             @if ($dapatKelola) Klik <span class="font-medium text-slate-700">Tambah Scene</span> untuk memulai. @endif
         </div>
     @else
+        {{-- Toggle tampilan: tree (ringkas, collapsible) vs tabel (matriks penuh) --}}
+        <div class="flex items-center justify-end gap-1">
+            <span class="mr-1 text-[11px] text-slate-400">Tampilan:</span>
+            <button type="button" wire:click="gantiTampilan('tree')"
+                    class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition {{ $tampilan === 'tree' ? 'bg-brand-700 text-white shadow-sm' : 'border border-slate-300 bg-white text-slate-600 hover:bg-slate-50' }}">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M7 12h13M10 18h10" /></svg>
+                Tree
+            </button>
+            <button type="button" wire:click="gantiTampilan('tabel')"
+                    class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition {{ $tampilan === 'tabel' ? 'bg-brand-700 text-white shadow-sm' : 'border border-slate-300 bg-white text-slate-600 hover:bg-slate-50' }}">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M8 4v16M16 4v16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" /></svg>
+                Tabel
+            </button>
+        </div>
+
         {{-- Legenda: bedakan badge status (pil, tidak bisa diklik) vs tombol aksi (kotak, bisa diklik) --}}
         <div class="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 text-[11px] text-slate-500">
             <span class="flex items-center gap-1.5">
@@ -163,17 +178,107 @@
             <span>Urutan kerja: <span class="font-semibold text-blue-600">Mulai</span> → <span class="font-semibold text-amber-600">Ajukan Review</span> → <span class="font-semibold text-green-600">Tinjau</span> (supervisor/team lead)</span>
         </div>
 
+        @if ($tampilan === 'tree')
+        {{-- Tampilan tree: Scene (collapsible, default tertutup) → Shot → kartu tahap --}}
+        <div class="space-y-2">
+            @foreach ($proyek->adegan as $adegan)
+                <div wire:key="tree-scene-{{ $adegan->id }}" x-data="{ buka: false }"
+                     class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    {{-- Node scene --}}
+                    <button type="button" x-on:click="buka = !buka"
+                            class="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-brand-50/40">
+                        <svg class="h-4 w-4 shrink-0 text-slate-400 transition-transform" x-bind:class="buka ? 'rotate-90' : ''"
+                             fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                        <span class="text-sm font-semibold text-brand-900">{{ $adegan->scene_name }}</span>
+                        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">{{ $adegan->shot->count() }} shot</span>
+                        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] tabular-nums text-slate-500">{{ $adegan->total_duration }}s</span>
+                        @php
+                            $totalTugas = $adegan->shot->flatMap->tugasShot;
+                            $selesai = $totalTugas->where('status', \App\Enums\TaskStatus::APPROVED)->count();
+                        @endphp
+                        <span class="ml-auto flex items-center gap-2 text-[11px] text-slate-400">
+                            <span class="{{ $totalTugas->count() > 0 && $selesai === $totalTugas->count() ? 'font-semibold text-green-600' : '' }}">{{ $selesai }}/{{ $totalTugas->count() }} tugas disetujui</span>
+                            @if ($totalTugas->count() > 0)
+                                <span class="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+                                    <span class="block h-full rounded-full bg-green-500" style="width: {{ (int) round($selesai / max(1, $totalTugas->count()) * 100) }}%"></span>
+                                </span>
+                            @endif
+                        </span>
+                    </button>
+
+                    {{-- Anak: daftar shot --}}
+                    <div x-show="buka" x-collapse x-cloak class="border-t border-slate-100">
+                        @forelse ($adegan->shot as $shot)
+                            <div wire:key="tree-shot-{{ $shot->id }}" x-data="{ bukaShot: false }" class="border-b border-slate-100 last:border-b-0">
+                                <button type="button" x-on:click="bukaShot = !bukaShot"
+                                        class="flex w-full items-center gap-2.5 py-2.5 pl-10 pr-4 text-left transition hover:bg-slate-50">
+                                    <svg class="h-3.5 w-3.5 shrink-0 text-slate-300 transition-transform" x-bind:class="bukaShot ? 'rotate-90' : ''"
+                                         fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                    <span class="font-mono text-xs font-semibold text-slate-800">{{ $shot->shot_code }}</span>
+                                    <span class="text-[11px] tabular-nums text-slate-400">{{ $shot->duration_seconds }}s</span>
+                                    {{-- Ringkasan status per tahap (badge kecil) --}}
+                                    <span class="ml-2 flex flex-wrap items-center gap-1">
+                                        @foreach ($tahapKolom as $tahap)
+                                            @php $tg = $shot->tugasShot->first(fn ($t) => $t->tahap_id === $tahap->id); @endphp
+                                            @if ($tg)
+                                                <span class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium {{ $tg->status->color() }}" title="{{ $tahap->name }}: {{ $tg->status->label() }}">
+                                                    {{ $tahap->name }}
+                                                </span>
+                                            @endif
+                                        @endforeach
+                                    </span>
+                                    <span class="ml-auto flex shrink-0 items-center gap-2">
+                                        @if (filled($shot->meta) || filled($shot->description))
+                                            <span x-on:click.stop="$wire.bukaDetailShot({{ $shot->id }})" role="button" title="Lihat referensi shotlist shot ini (VO, Visual, dll)"
+                                                  class="inline-flex items-center gap-1 rounded-lg border border-violet-300 bg-violet-50 px-2 py-1 text-[11px] font-semibold text-violet-700 shadow-sm transition hover:bg-violet-100">
+                                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                Referensi
+                                            </span>
+                                        @endif
+                                        @if ($dapatKelola)
+                                            <span x-on:click.stop="$confirm(@js('Hapus shot '.$shot->shot_code.' beserta seluruh sub-task-nya?'), { danger: true }).then(ok => ok && $wire.deleteShot({{ $shot->id }}))"
+                                                  role="button" title="Hapus shot"
+                                                  class="inline-flex items-center justify-center rounded-md bg-slate-100 p-1.5 text-red-500 transition hover:bg-red-100 hover:text-red-700">
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.87 12.14A2 2 0 0116.14 21H7.86a2 2 0 01-1.99-1.86L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </span>
+                                        @endif
+                                    </span>
+                                </button>
+
+                                {{-- Anak: kartu tahap (grid) --}}
+                                <div x-show="bukaShot" x-collapse x-cloak class="bg-slate-50/50 py-3 pl-16 pr-4">
+                                    @php $gridTahap = match (min(4, max(1, count($tahapKolom)))) { 1 => 'lg:grid-cols-1', 2 => 'lg:grid-cols-2', 3 => 'lg:grid-cols-3', default => 'lg:grid-cols-4' }; @endphp
+                                    <div class="grid gap-2 sm:grid-cols-2 {{ $gridTahap }}">
+                                        @foreach ($tahapKolom as $tahap)
+                                            <div wire:key="tree-tugas-{{ $shot->id }}-{{ $tahap->id }}" class="rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+                                                <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{{ $tahap->name }}</p>
+                                                @include('livewire.partials.shot-matrix-tugas', ['shot' => $shot, 'tahap' => $tahap])
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
+                        @empty
+                            <p class="py-3 pl-10 text-xs italic text-slate-400">Belum ada shot.</p>
+                        @endforelse
+                    </div>
+                </div>
+            @endforeach
+        </div>
+        @else
         {{-- Kartu matriks --}}
         <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="overflow-x-auto">
                 <table class="min-w-full text-xs">
                     <thead>
                         <tr class="border-b border-slate-200 bg-slate-50/70 text-[11px] uppercase tracking-wide text-slate-500">
+                            <th class="px-4 py-3 text-left font-semibold">Scene</th>
                             <th class="px-4 py-3 text-left font-semibold">Shot</th>
                             <th class="px-4 py-3 text-right font-semibold">Durasi</th>
                             @foreach ($tahapKolom as $tahap)
                                 <th class="border-l border-slate-100/70 px-4 py-3 text-left font-semibold">{{ $tahap->name }}</th>
                             @endforeach
+                            <th class="border-l border-slate-100/70 px-4 py-3 text-center font-semibold">Detail</th>
                             <th class="border-l border-slate-100/70 px-4 py-3 text-center font-semibold">Aksi</th>
                         </tr>
                     </thead>
@@ -182,10 +287,10 @@
                         <tbody class="divide-y divide-slate-100">
                             {{-- Judul scene --}}
                             <tr class="bg-brand-50/60">
-                                <td colspan="2" class="px-4 py-2 text-sm font-semibold text-brand-900">
+                                <td colspan="3" class="px-4 py-2 text-sm font-semibold text-brand-900">
                                     {{ $adegan->scene_name }}
                                 </td>
-                                <td colspan="{{ count($tahapKolom) }}" class="px-4 py-2 text-xs text-brand-600">
+                                <td colspan="{{ count($tahapKolom) + 1 }}" class="px-4 py-2 text-xs text-brand-600">
                                     {{ $adegan->shot->count() }} shot
                                 </td>
                                 <td class="bg-brand-50/60"></td>
@@ -193,84 +298,27 @@
 
                             @forelse ($adegan->shot as $shot)
                                 <tr wire:key="shot-{{ $shot->id }}" class="group transition hover:bg-slate-50">
+                                    <td class="whitespace-nowrap px-4 py-2 text-slate-500">{{ $adegan->scene_name }}</td>
                                     <td class="whitespace-nowrap px-4 py-2 font-mono font-medium text-slate-800">{{ $shot->shot_code }}</td>
                                     <td class="whitespace-nowrap px-4 py-2 text-right tabular-nums text-slate-500">{{ $shot->duration_seconds }}s</td>
 
                                     @foreach ($tahapKolom as $tahap)
-                                        @php
-                                            $tugas = $shot->tugasShot->first(fn ($t) => $t->tahap_id === $tahap->id);
-                                            $milik = $tugas && $tugas->artists->contains($uid);
-                                            $bisaBuka = $tugas && ($kelolaEpisode || $milik);
-                                            $st = $tugas?->status;
-                                            $btn = 'w-full rounded-md px-2 py-1 text-[11px] font-semibold transition';
-                                            // Dependensi pipeline: tahap ini butuh prasyarat (tahap sebelumnya) APPROVED dulu.
-                                            $prereqOk = true;
-                                            $prereqNama = null;
-                                            if ($tugas && $tahap->requires_tahap_id) {
-                                                $pre = $shot->tugasShot->first(fn ($t) => $t->tahap_id === $tahap->requires_tahap_id);
-                                                $prereqOk = $pre && $pre->status === \App\Enums\TaskStatus::APPROVED;
-                                                $prereqNama = optional($tahapKolom->firstWhere('id', $tahap->requires_tahap_id))->name ?? 'tahap sebelumnya';
-                                            }
-                                        @endphp
                                         <td class="border-l border-slate-100/60 px-2 py-2 align-top">
-                                            @if (! $tugas)
-                                                <span class="block text-center text-[10px] italic text-slate-300" title="Shot ini tidak punya sub-task untuk tahap {{ $tahap->name }} — cek Konfigurasi Pipeline episode.">tidak ada tugas</span>
-                                            @else
-                                                <div @class([
-                                                    'rounded-lg p-2',
-                                                    'ring-2 ring-brand-400 bg-brand-50/60' => $milik,
-                                                    'bg-slate-50/40' => ! $milik && $bisaBuka,
-                                                ])>
-                                                    <div class="mb-1 flex flex-wrap items-center gap-1">
-                                                        <x-badge-status :status="$st" />
-                                                        @if ($milik)
-                                                            <span class="inline-flex items-center rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">Anda</span>
-                                                        @endif
-                                                    </div>
-
-                                                    @if ($tugas->artists->isNotEmpty())
-                                                        <p class="mb-1.5 truncate text-[11px] {{ $milik ? 'font-semibold text-brand-700' : 'text-slate-500' }}" title="{{ $tugas->artists->pluck('name')->join(', ') }}">{{ $tugas->artists->pluck('name')->join(', ') }}</p>
-                                                    @else
-                                                        <p class="mb-1.5 text-[11px] italic {{ $kelolaEpisode ? 'text-amber-500' : 'text-slate-300' }}">
-                                                            belum ada artis{{ $kelolaEpisode ? ' — pakai Assign Massal' : '' }}
-                                                        </p>
-                                                    @endif
-
-                                                    @if ($st === \App\Enums\TaskStatus::NOT_STARTED && $milik && ! $prereqOk)
-                                                        <x-tombol-aksi variant="mulai" block disabled :reason="'Menunggu '.$prereqNama.' disetujui'">▶ Mulai</x-tombol-aksi>
-                                                    @elseif ($st === \App\Enums\TaskStatus::NOT_STARTED && $milik && ! $published)
-                                                        <x-tombol-aksi variant="mulai" block disabled reason="Episode belum dipublish">▶ Mulai</x-tombol-aksi>
-                                                    @elseif ($st === \App\Enums\TaskStatus::NOT_STARTED && $milik)
-                                                        <x-tombol-aksi variant="mulai" block wire:click="mulaiShot({{ $tugas->id }})">▶ Mulai</x-tombol-aksi>
-                                                    @elseif ($st === \App\Enums\TaskStatus::NOT_STARTED && ! $prereqOk && ! $bisaBuka)
-                                                        <span class="flex w-full items-center justify-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-400" title="Selesaikan & setujui {{ $prereqNama }} dulu">
-                                                            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                                                            Menunggu {{ $prereqNama }}
-                                                        </span>
-                                                    @elseif ($milik && $st === \App\Enums\TaskStatus::IN_PROGRESS)
-                                                        <x-tombol-aksi variant="review" block wire:click="review({{ $tugas->id }})">⤴ Ajukan Review</x-tombol-aksi>
-                                                    @elseif ($bisaReviewEpisode && $st === \App\Enums\TaskStatus::REVIEW)
-                                                        <x-tombol-aksi variant="setuju" block wire:click="review({{ $tugas->id }})">Tinjau Sekarang</x-tombol-aksi>
-                                                    @elseif ($milik && $st === \App\Enums\TaskStatus::REVIEW)
-                                                        <button wire:click="review({{ $tugas->id }})" title="Buka untuk lihat / perbarui kiriman selagi menunggu ditinjau"
-                                                                class="{{ $btn }} flex items-center justify-center gap-1 border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100">
-                                                            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                                            Menunggu review
-                                                        </button>
-                                                    @elseif ($st === \App\Enums\TaskStatus::APPROVED)
-                                                        @if ($bisaBuka)
-                                                            <x-tombol-aksi variant="lihat" block wire:click="review({{ $tugas->id }})">✓ Lihat Hasil</x-tombol-aksi>
-                                                        @else
-                                                            <span class="block text-center text-[11px] font-semibold text-green-600">✓ Disetujui</span>
-                                                        @endif
-                                                    @elseif ($bisaBuka)
-                                                        <x-tombol-aksi variant="netral" block wire:click="review({{ $tugas->id }})">Buka Detail</x-tombol-aksi>
-                                                    @endif
-                                                </div>
-                                            @endif
+                                            @include('livewire.partials.shot-matrix-tugas', ['shot' => $shot, 'tahap' => $tahap])
                                         </td>
                                     @endforeach
 
+                                    <td class="border-l border-slate-100/60 px-3 py-2.5 text-center align-top">
+                                        @if (filled($shot->meta) || filled($shot->description))
+                                            <button type="button" wire:click="bukaDetailShot({{ $shot->id }})" title="Lihat referensi shotlist shot ini (VO, Visual, dll)"
+                                                    class="inline-flex items-center gap-1 rounded-lg border border-violet-300 bg-violet-50 px-2 py-1 text-[11px] font-semibold text-violet-700 shadow-sm transition hover:bg-violet-100">
+                                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                Referensi
+                                            </button>
+                                        @else
+                                            <span class="text-[10px] italic text-slate-300" title="Shot ini belum punya metadata shotlist (dibuat manual atau shotlist tanpa kolom tambahan)">—</span>
+                                        @endif
+                                    </td>
                                     <td class="border-l border-slate-100/60 px-3 py-2.5 text-center">
                                         @if ($dapatKelola)
                                             <button type="button"
@@ -285,24 +333,29 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="{{ 3 + count($tahapKolom) }}" class="px-4 py-3 text-slate-400">Belum ada shot.</td></tr>
+                                <tr><td colspan="{{ 5 + count($tahapKolom) }}" class="px-4 py-3 text-slate-400">Belum ada shot.</td></tr>
                             @endforelse
 
                             {{-- Subtotal durasi scene --}}
                             <tr class="bg-slate-50/80 font-medium text-slate-600">
-                                <td class="px-4 py-2 text-right">Total {{ $adegan->scene_name }}</td>
+                                <td colspan="2" class="px-4 py-2 text-right">Total {{ $adegan->scene_name }}</td>
                                 <td class="px-4 py-2 text-right tabular-nums font-semibold text-brand-700">{{ $adegan->total_duration }}s</td>
-                                <td colspan="{{ count($tahapKolom) + 1 }}"></td>
+                                <td colspan="{{ count($tahapKolom) + 2 }}"></td>
                             </tr>
                         </tbody>
                     @endforeach
                 </table>
             </div>
         </div>
+        @endif
 
         <p class="flex items-center gap-1.5 text-xs text-slate-400">
             <span class="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-green-500"></span>
-            Klik sel status untuk membuka panel review &amp; revisi · menyegar otomatis tiap 15 detik.
+            @if ($tampilan === 'tree')
+                Klik scene lalu shot untuk membuka detail tahap · menyegar otomatis tiap 15 detik.
+            @else
+                Klik sel status untuk membuka panel review &amp; revisi · menyegar otomatis tiap 15 detik.
+            @endif
         </p>
     @endif
     @endif
@@ -370,6 +423,50 @@
                         <button type="submit" class="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">Simpan Shot</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    @endif
+
+    {{-- Modal detail referensi shotlist (read-only, bukan form) --}}
+    @if ($detailShotId && $detail['shot'])
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-brand-950/60" wire:click="tutupDetailShot"></div>
+            <div class="relative max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+                <div class="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+                    <div>
+                        <h2 class="text-base font-semibold text-slate-900">Referensi Shotlist</h2>
+                        <p class="text-xs text-slate-400">
+                            {{ $detail['shot']->adegan?->scene_name }} · <span class="font-mono font-medium text-slate-600">{{ $detail['shot']->shot_code }}</span> · {{ $detail['shot']->duration_seconds }} detik
+                        </p>
+                    </div>
+                    <button wire:click="tutupDetailShot" class="text-xl leading-none text-slate-400 hover:text-slate-700">&times;</button>
+                </div>
+
+                <div class="px-5 py-4">
+                    @if ($detail['shot']->description)
+                        <div class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                            <p class="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Deskripsi shot</p>
+                            <p class="whitespace-pre-line text-sm leading-relaxed text-slate-700">{{ $detail['shot']->description }}</p>
+                        </div>
+                    @endif
+
+                    @if (empty($detail['items']))
+                        <p class="py-6 text-center text-sm text-slate-400">Belum ada data referensi shotlist untuk shot ini.</p>
+                    @else
+                        <dl class="divide-y divide-slate-100">
+                            @foreach ($detail['items'] as $item)
+                                <div class="grid grid-cols-3 gap-3 py-2.5" wire:key="det-{{ $loop->index }}">
+                                    <dt class="text-xs font-medium text-slate-500">{{ $item['label'] }}</dt>
+                                    <dd class="col-span-2 whitespace-pre-line text-sm leading-relaxed text-slate-800">{{ $item['nilai'] }}</dd>
+                                </div>
+                            @endforeach
+                        </dl>
+                    @endif
+
+                    <p class="mt-3 border-t border-slate-100 pt-3 text-[11px] text-slate-400">
+                        Data ini berasal dari shotlist pra-produksi (hasil Generate ke Produksi) — hanya untuk dilihat. Pengelola dapat mengubahnya lewat panel review shot.
+                    </p>
+                </div>
             </div>
         </div>
     @endif

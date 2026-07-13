@@ -6,15 +6,19 @@ use App\Actions\CreateShot;
 use App\Actions\TransitionShotTaskStatus;
 use App\Enums\FaseProduksi;
 use App\Enums\LevelTahap;
+use App\Enums\PeranKolomShotlist;
 use App\Enums\TaskStatus;
 use App\Exceptions\InvalidShotTaskTransition;
 use App\Models\Adegan;
+use App\Models\GayaShotlist;
+use App\Models\KolomShotlist;
 use App\Models\Proyek;
 use App\Models\Shot;
 use App\Models\Tahap;
 use App\Models\TugasShot;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
@@ -116,9 +120,84 @@ class ShotMatrix extends Component
         }
     }
 
+    // ---------- Detail referensi shotlist (read-only, modal) ----------
+
+    /** Shot yang sedang dibuka detail referensi shotlist-nya. */
+    public ?int $detailShotId = null;
+
+    public function bukaDetailShot(int $shotId): void
+    {
+        abort_unless($this->proyekId && $this->bolehAkses($this->proyekId), 403);
+
+        $milikEpisode = Shot::whereKey($shotId)
+            ->whereHas('adegan', fn ($q) => $q->where('project_id', $this->proyekId))
+            ->exists();
+        abort_unless($milikEpisode, 404);
+
+        $this->detailShotId = $shotId;
+    }
+
+    public function tutupDetailShot(): void
+    {
+        $this->detailShotId = null;
+    }
+
+    /**
+     * Data referensi shotlist shot terpilih (label kolom => nilai), read-only.
+     * Sumber: shot->meta (hasil Generate ke Produksi) + duration; urut sesuai kolom gaya.
+     *
+     * @return array{shot: ?Shot, items: array<int, array{label: string, nilai: string}>}
+     */
+    private function detailShot(): array
+    {
+        if (! $this->detailShotId) {
+            return ['shot' => null, 'items' => []];
+        }
+
+        $shot = Shot::with('adegan:id,scene_name,project_id')->find($this->detailShotId);
+        if (! $shot) {
+            return ['shot' => null, 'items' => []];
+        }
+
+        $styleId = GayaShotlist::untukProyek(Proyek::with('seri')->find($this->proyekId))?->id;
+        $meta = $shot->meta ?? [];
+
+        $kolom = KolomShotlist::query()->aktif()->gaya($styleId)->urut()->get(['key', 'label', 'peran']);
+        $items = $kolom
+            ->map(function ($k) use ($shot, $meta) {
+                // Kolom berperan diambil dari field shot; sisanya dari meta.
+                $nilai = match ($k->peran) {
+                    PeranKolomShotlist::SCENE => $shot->adegan?->scene_name,
+                    PeranKolomShotlist::SHOT_CODE => $shot->shot_code,
+                    PeranKolomShotlist::DURATION => $shot->duration_seconds.' detik',
+                    default => $meta[$k->key] ?? null,
+                };
+
+                return ['label' => $k->label, 'nilai' => trim((string) $nilai)];
+            })
+            ->filter(fn ($i) => $i['nilai'] !== '');
+
+        // Meta key tanpa definisi kolom (mis. style berganti setelah generate) tetap ditampilkan.
+        $sisa = collect($meta)->except($kolom->pluck('key'))
+            ->map(fn ($v, $key) => ['label' => Str::headline($key), 'nilai' => trim((string) $v)])
+            ->filter(fn ($i) => $i['nilai'] !== '')
+            ->values();
+
+        return ['shot' => $shot, 'items' => $items->concat($sisa)->values()->all()];
+    }
+
     public function gantiEpisode(): void
     {
         $this->proyekId = null;
+        $this->detailShotId = null;
+    }
+
+    /** Mode tampilan matriks: 'tree' (Scene → Shot, node collapsible) atau 'tabel' (matriks penuh). */
+    public string $tampilan = 'tree';
+
+    public function gantiTampilan(string $mode): void
+    {
+        $this->tampilan = in_array($mode, ['tree', 'tabel'], true) ? $mode : 'tree';
     }
 
     public function bukaShotForm(): void
@@ -354,6 +433,7 @@ class ShotMatrix extends Component
             'kelolaEpisode' => $proyek ? ($supervisor || $proyek->team_lead_id === auth()->id()) : false,
             'bisaReviewEpisode' => $proyek ? $proyek->dapatReview(auth()->user()) : false,
             'published' => $proyek ? $proyek->isPublished() : false,
+            'detail' => $this->detailShot(),
             'uid' => auth()->id(),
         ]);
     }
