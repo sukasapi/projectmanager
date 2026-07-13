@@ -46,6 +46,9 @@
             </div>
         @endif
     @else
+        {{-- Stepper lifecycle: posisi episode & langkah berikutnya --}}
+        <x-stepper-episode :proyek="$proyek" :dapat-kelola="$dapatKelola" />
+
         {{-- Tracker tahap --}}
         @if ($proyek->isClosed())
             <div class="mb-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm text-slate-500">
@@ -58,6 +61,19 @@
                 Belum ada tahap aktif untuk {{ $fase->label() }}. Atur di <a href="{{ route('pengaturan.pipeline') }}" wire:navigate class="text-brand-600 hover:underline">Konfigurasi Pipeline</a>.
             </div>
         @else
+            {{-- Legenda: bedakan badge status vs tombol aksi + urutan alur --}}
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 text-[11px] text-slate-500">
+                <span class="flex items-center gap-1.5">
+                    <x-badge-status label="Status" color="bg-blue-100 text-blue-700" />
+                    = keterangan (bukan tombol)
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <span class="inline-flex items-center rounded-lg bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">▶ Aksi</span>
+                    = tombol yang bisa diklik
+                </span>
+                <span>Alur: <span class="font-semibold text-slate-600">Assign Artis</span> → <span class="font-semibold text-blue-600">Mulai</span> → <span class="font-semibold text-amber-600">Ajukan Review</span> → <span class="font-semibold text-green-600">Setujui</span>/<span class="font-semibold text-red-600">Tolak</span></span>
+            </div>
+
             <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
@@ -79,11 +95,15 @@
                                         <div class="font-medium text-slate-800">{{ $tahap->name }}</div>
                                         @if ($row?->deskripsi)<div class="mt-0.5 line-clamp-1 text-xs text-slate-400">{{ $row->deskripsi }}</div>@endif
                                     </td>
-                                    <td class="px-4 py-3 text-slate-600">{{ $row?->artis?->name ?? '—' }}</td>
+                                    <td class="px-4 py-3 text-slate-600">
+                                        @if ($row?->artis)
+                                            {{ $row->artis->name }}
+                                        @else
+                                            <x-badge-status label="belum ditugaskan" color="bg-amber-50 text-amber-600" />
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-3">
-                                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium {{ ($row?->status ?? \App\Enums\TaskStatus::NOT_STARTED)->color() }}">
-                                            {{ ($row?->status ?? \App\Enums\TaskStatus::NOT_STARTED)->label() }}
-                                        </span>
+                                        <x-badge-status :status="$row?->status ?? \App\Enums\TaskStatus::NOT_STARTED" />
                                     </td>
                                     <td class="px-4 py-3 text-xs text-slate-500">
                                         @if ($row?->start_date || $row?->deadline)
@@ -105,26 +125,55 @@
                                         @php
                                             $st = $row?->status ?? \App\Enums\TaskStatus::NOT_STARTED;
                                             $milikSaya = $row && $row->artist_id === auth()->id();
-                                            $bisaKerja = $row && ($milikSaya || $dapatReview) && $proyek->isPublished();
+                                            $terlibat = $milikSaya || $dapatReview;
+                                            $bisaKerja = $row && $terlibat && $proyek->isPublished();
                                         @endphp
                                         <div class="flex items-center justify-center gap-1">
                                             @if ($tahap->code === 'shotlist' && ($dapatKelola || ($row?->artist_id === auth()->id())))
-                                                <a href="{{ route('shotlist') }}?episode={{ $proyek->id }}" wire:navigate class="rounded-md bg-violet-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-700" title="Buka halaman Shotlist episode ini (manual / AI)">
+                                                <a href="{{ route('shotlist') }}?episode={{ $proyek->id }}" wire:navigate class="inline-flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700" title="Buka halaman Shotlist episode ini (manual / AI)">
                                                     Buka Shotlist
                                                 </a>
                                             @endif
                                             @if ($tahap->code === 'script' && ($dapatKelola || ($row?->artist_id === auth()->id())))
-                                                <button wire:click="bukaSkenario" class="rounded-md bg-violet-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-700" title="Tulis/ubah skenario (naskah) episode — dipakai fitur Buat Shotlist dengan AI">
+                                                <button wire:click="bukaSkenario" class="inline-flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700" title="Tulis/ubah skenario (naskah) episode — dipakai fitur Buat Shotlist dengan AI">
                                                     Skenario{{ filled($proyek->skenario) ? ' ✓' : '' }}
                                                 </button>
                                             @endif
-                                            @if ($bisaKerja && $st === \App\Enums\TaskStatus::NOT_STARTED)
-                                                <button wire:click="mulai({{ $row->id }})" class="rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700">Mulai</button>
-                                            @elseif ($bisaKerja && $st === \App\Enums\TaskStatus::IN_PROGRESS)
-                                                <button x-on:click="$confirm(@js('Ajukan pekerjaan ini untuk direview?'), { confirmText: 'Ajukan', icon: 'info' }).then(ok => ok && $wire.propose({{ $row->id }}))" class="rounded-md bg-amber-500 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-600">Propose</button>
-                                            @elseif ($dapatReview && $st === \App\Enums\TaskStatus::REVIEW)
-                                                <button wire:click="setujui({{ $row->id }})" class="rounded-md bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700">Setujui</button>
-                                                <button wire:click="tolak({{ $row->id }})" class="rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700">Tolak</button>
+
+                                            @if (! $row && $dapatKelola)
+                                                {{-- Tahap belum di-setup: tombol utama = Setup (assign artis) --}}
+                                                <x-tombol-aksi variant="primary" wire:click="edit({{ $tahap->id }})" title="Assign artis & jadwal untuk tahap ini">
+                                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                                                    Assign Artis
+                                                </x-tombol-aksi>
+                                            @elseif (! $row)
+                                                <span class="text-[11px] italic text-slate-400" title="Supervisor/Team Lead perlu meng-assign artis dulu">belum di-setup</span>
+                                            @elseif ($st === \App\Enums\TaskStatus::NOT_STARTED && $terlibat)
+                                                @if (! $proyek->isPublished())
+                                                    <x-tombol-aksi variant="mulai" disabled reason="Episode belum dipublish">Mulai</x-tombol-aksi>
+                                                @elseif (! $row->artist_id && ! $dapatReview)
+                                                    <x-tombol-aksi variant="mulai" disabled reason="Belum ada artis di tahap ini">Mulai</x-tombol-aksi>
+                                                @else
+                                                    <x-tombol-aksi variant="mulai" wire:click="mulai({{ $row->id }})" title="Mulai mengerjakan tahap ini">▶ Mulai</x-tombol-aksi>
+                                                @endif
+                                            @elseif ($st === \App\Enums\TaskStatus::IN_PROGRESS && $terlibat)
+                                                @if ($bisaKerja)
+                                                    <x-tombol-aksi variant="review" x-on:click="$confirm(@js('Ajukan pekerjaan ini untuk direview?'), { confirmText: 'Ajukan', icon: 'info' }).then(ok => ok && $wire.propose({{ $row->id }}))" title="Ajukan hasil kerja untuk direview supervisor/team lead">⤴ Ajukan Review</x-tombol-aksi>
+                                                @else
+                                                    <x-tombol-aksi variant="review" disabled reason="Episode belum dipublish">⤴ Ajukan Review</x-tombol-aksi>
+                                                @endif
+                                            @elseif ($st === \App\Enums\TaskStatus::REVIEW)
+                                                @if ($dapatReview)
+                                                    <x-tombol-aksi variant="setuju" wire:click="setujui({{ $row->id }})">✓ Setujui</x-tombol-aksi>
+                                                    <x-tombol-aksi variant="tolak" wire:click="tolak({{ $row->id }})">✕ Tolak</x-tombol-aksi>
+                                                @elseif ($milikSaya)
+                                                    <span class="inline-flex items-center gap-1 text-[11px] italic text-amber-600" title="Supervisor/Team Lead akan meninjau pekerjaan Anda">
+                                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        menunggu ditinjau
+                                                    </span>
+                                                @endif
+                                            @elseif ($st === \App\Enums\TaskStatus::APPROVED)
+                                                <span class="text-[11px] font-semibold text-green-600">✓ Selesai</span>
                                             @endif
 
                                             @if ($row)
@@ -136,7 +185,7 @@
                                                 </button>
                                             @endif
 
-                                            @if ($dapatKelola)
+                                            @if ($row && $dapatKelola)
                                                 <button wire:click="edit({{ $tahap->id }})" class="inline-flex rounded-md bg-slate-100 p-1.5 text-slate-500 transition hover:bg-brand-100 hover:text-brand-700" title="Setup (assign & jadwal)">
                                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                                 </button>
