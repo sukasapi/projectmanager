@@ -6,6 +6,7 @@ use App\Actions\CreateShot;
 use App\Enums\PeranKolomShotlist;
 use App\Enums\TaskStatus;
 use App\Models\Adegan;
+use App\Models\GayaShotlist;
 use App\Models\KolomShotlist;
 use App\Models\Proyek;
 use App\Models\Shot;
@@ -156,10 +157,16 @@ TEKS;
         $this->skenario = (string) Proyek::find($this->proyekId)?->skenario;
     }
 
-    /** @return Collection<int, KolomShotlist> */
+    /** ID gaya shotlist yang berlaku untuk episode ini (dari seri, fallback default). */
+    private function styleId(): ?int
+    {
+        return GayaShotlist::untukProyek($this->proyekId ? Proyek::with('seri')->find($this->proyekId) : null)?->id;
+    }
+
+    /** @return Collection<int, KolomShotlist> kolom aktif milik gaya episode ini */
     private function kolom()
     {
-        return KolomShotlist::aktif()->urut()->get();
+        return KolomShotlist::aktif()->gaya($this->styleId())->urut()->get();
     }
 
     public function tambah(): void
@@ -515,9 +522,10 @@ TEKS;
         abort_unless($this->bolehKelola(), 403);
         $proyek = Proyek::findOrFail($this->proyekId);
 
-        $sceneKey = KolomShotlist::keyBerperan(PeranKolomShotlist::SCENE);
-        $codeKey = KolomShotlist::keyBerperan(PeranKolomShotlist::SHOT_CODE);
-        $durKey = KolomShotlist::keyBerperan(PeranKolomShotlist::DURATION);
+        $styleId = $this->styleId();
+        $sceneKey = KolomShotlist::keyBerperan(PeranKolomShotlist::SCENE, $styleId);
+        $codeKey = KolomShotlist::keyBerperan(PeranKolomShotlist::SHOT_CODE, $styleId);
+        $durKey = KolomShotlist::keyBerperan(PeranKolomShotlist::DURATION, $styleId);
 
         if (! $sceneKey || ! $codeKey) {
             $this->dispatch('toast', message: 'Tandai dulu kolom Scene & Shot No# di Konfigurasi Kolom Shotlist.', icon: 'error');
@@ -570,10 +578,12 @@ TEKS;
      */
     private function kunciTree(): array
     {
+        $styleId = $this->styleId();
+
         return [
-            'scene' => KolomShotlist::keyBerperan(PeranKolomShotlist::SCENE),
-            'code' => KolomShotlist::keyBerperan(PeranKolomShotlist::SHOT_CODE),
-            'dur' => KolomShotlist::keyBerperan(PeranKolomShotlist::DURATION),
+            'scene' => KolomShotlist::keyBerperan(PeranKolomShotlist::SCENE, $styleId),
+            'code' => KolomShotlist::keyBerperan(PeranKolomShotlist::SHOT_CODE, $styleId),
+            'dur' => KolomShotlist::keyBerperan(PeranKolomShotlist::DURATION, $styleId),
             'vo' => $this->kolom()->first(
                 fn ($k) => Str::lower($k->key) === 'vo' || Str::contains(Str::lower($k->label), 'vo')
             )?->key,
@@ -631,8 +641,9 @@ TEKS;
      */
     private function rekap(Collection $rows): array
     {
-        $sceneKey = KolomShotlist::keyBerperan(PeranKolomShotlist::SCENE);
-        $durKey = KolomShotlist::keyBerperan(PeranKolomShotlist::DURATION);
+        $styleId = $this->styleId();
+        $sceneKey = KolomShotlist::keyBerperan(PeranKolomShotlist::SCENE, $styleId);
+        $durKey = KolomShotlist::keyBerperan(PeranKolomShotlist::DURATION, $styleId);
 
         $scenes = $sceneKey
             ? $rows->map(fn ($r) => trim((string) ($r->data[$sceneKey] ?? '')))->filter()->unique()->count()

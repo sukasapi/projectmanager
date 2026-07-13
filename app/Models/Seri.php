@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -16,7 +17,7 @@ class Seri extends Model
 
     protected $table = 'kf_seri';
 
-    protected $fillable = ['name', 'description'];
+    protected $fillable = ['name', 'description', 'shotlist_style_id'];
 
     /** @return HasMany<Proyek, $this> */
     public function episode(): HasMany
@@ -28,5 +29,11 @@ class Seri extends Model
     public function aset(): HasMany
     {
         return $this->hasMany(Aset::class, 'series_id');
+    }
+
+    /** Gaya shotlist pilihan seri — berlaku untuk seluruh episodenya. @return BelongsTo<GayaShotlist, $this> */
+    public function gayaShotlist(): BelongsTo
+    {
+        return $this->belongsTo(GayaShotlist::class, 'shotlist_style_id');
     }
 }

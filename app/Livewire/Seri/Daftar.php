@@ -4,6 +4,7 @@ namespace App\Livewire\Seri;
 
 use App\Enums\TaskStatus;
 use App\Models\Adegan;
+use App\Models\GayaShotlist;
 use App\Models\Seri;
 use App\Models\Shot;
 use App\Models\TugasShot;
@@ -26,6 +27,9 @@ class Daftar extends Component
 
     public string $description = '';
 
+    /** Style shotlist pilihan seri — kosong = pakai default studio. */
+    public ?int $shotlistStyleId = null;
+
     public function mount(): void
     {
         abort_unless(Gate::allows('manage-tim'), 403);
@@ -34,7 +38,7 @@ class Daftar extends Component
     public function create(): void
     {
         abort_unless(Gate::allows('manage-tim'), 403);
-        $this->reset(['editingId', 'name', 'description']);
+        $this->reset(['editingId', 'name', 'description', 'shotlistStyleId']);
         $this->resetErrorBag();
         $this->showForm = true;
     }
@@ -46,6 +50,7 @@ class Daftar extends Component
         $this->editingId = $s->id;
         $this->name = $s->name;
         $this->description = $s->description ?? '';
+        $this->shotlistStyleId = $s->shotlist_style_id;
         $this->resetErrorBag();
         $this->showForm = true;
     }
@@ -57,14 +62,16 @@ class Daftar extends Component
         $v = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
-        ], attributes: ['name' => 'nama seri']);
+            'shotlistStyleId' => ['nullable', 'integer', 'exists:kf_gaya_shotlist,id'],
+        ], attributes: ['name' => 'nama seri', 'shotlistStyleId' => 'style shotlist']);
 
         Seri::updateOrCreate(['id' => $this->editingId], [
             'name' => $v['name'],
             'description' => $v['description'] ?: null,
+            'shotlist_style_id' => $v['shotlistStyleId'] ?: null,
         ]);
 
-        $this->reset(['editingId', 'name', 'description']);
+        $this->reset(['editingId', 'name', 'description', 'shotlistStyleId']);
         $this->showForm = false;
         $this->dispatch('seri-tersimpan');
         $this->dispatch('toast', message: 'Seri disimpan.');
@@ -80,13 +87,13 @@ class Daftar extends Component
 
     public function cancel(): void
     {
-        $this->reset(['editingId', 'name', 'description']);
+        $this->reset(['editingId', 'name', 'description', 'shotlistStyleId']);
         $this->showForm = false;
     }
 
     public function render()
     {
-        $seri = Seri::with(['episode' => fn ($q) => $q->orderByDesc('id')])->orderBy('name')->get();
+        $seri = Seri::with(['episode' => fn ($q) => $q->orderByDesc('id'), 'gayaShotlist'])->orderBy('name')->get();
 
         // Progres agregat per seri (approved shot-task ÷ total), sedikit query.
         $epBySeri = $seri->flatMap(fn ($s) => $s->episode->map(fn ($e) => ['sid' => $s->id, 'eid' => $e->id]));
@@ -113,6 +120,7 @@ class Daftar extends Component
             'seri' => $seri,
             'progres' => $progres,
             'bisaKelola' => Gate::allows('manage-tim'),
+            'daftarStyle' => GayaShotlist::orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'is_default']),
         ]);
     }
 }

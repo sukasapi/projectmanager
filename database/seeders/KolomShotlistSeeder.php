@@ -2,17 +2,22 @@
 
 namespace Database\Seeders;
 
+use App\Models\GayaShotlist;
 use App\Models\KolomShotlist;
 use Illuminate\Database\Seeder;
 
 /**
- * Kolom Shotlist default (mengikuti contoh spreadsheet studio). Admin bebas
- * menambah/menghapus/urutkan/menandai peran sesuai kebutuhan studio. Idempoten.
+ * Style "Standar Studio" + kolom Shotlist default (mengikuti contoh spreadsheet
+ * studio). Admin bebas menambah style/kolom lain sesuai kebutuhan. Idempoten.
  */
 class KolomShotlistSeeder extends Seeder
 {
     public function run(): void
     {
+        $gaya = GayaShotlist::firstOrCreate(
+            ['name' => 'Standar Studio'],
+            ['description' => 'Gaya bawaan studio.', 'is_default' => true],
+        );
         $kolom = [
             ['key' => 'scene', 'label' => 'Scene', 'tipe' => 'text', 'peran' => 'scene'],
             ['key' => 'shot_no', 'label' => 'Shot No#', 'tipe' => 'text', 'peran' => 'shot_code'],
@@ -32,7 +37,7 @@ class KolomShotlistSeeder extends Seeder
 
         foreach ($kolom as $i => $k) {
             KolomShotlist::firstOrCreate(
-                ['key' => $k['key']],
+                ['style_id' => $gaya->id, 'key' => $k['key']],
                 [
                     'label' => $k['label'],
                     'tipe' => $k['tipe'],
