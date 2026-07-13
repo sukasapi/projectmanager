@@ -54,6 +54,16 @@ class ShotlistTest extends TestCase
             ->call('save')->assertHasErrors('peran');
     }
 
+    public function test_peran_durasi_boleh_dipakai_banyak_kolom(): void
+    {
+        // 'duration' sudah dipakai kolom dur_animate → kolom baru dengan peran duration tetap diterima.
+        Livewire::actingAs(User::factory()->create(['role' => 'Super Admin']))->test(ShotlistKolom::class)
+            ->call('create')->set('label', 'Duration Render (s)')->set('tipe', 'number')->set('peran', 'duration')
+            ->call('save')->assertHasNoErrors();
+
+        $this->assertSame(2, KolomShotlist::where('peran', 'duration')->count());
+    }
+
     public function test_admin_membuat_style_baru_dengan_kolom_terpisah(): void
     {
         $admin = User::factory()->create(['role' => 'Super Admin']);

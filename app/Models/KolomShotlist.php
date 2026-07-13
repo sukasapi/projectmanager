@@ -55,10 +55,13 @@ class KolomShotlist extends Model
         $q->where('style_id', $styleId);
     }
 
-    /** Key kolom yang berperan tertentu (scene/shot_code/duration) pada satu gaya, atau null. */
+    /**
+     * Key kolom yang berperan tertentu (scene/shot_code/duration) pada satu gaya, atau null.
+     * Peran duration boleh dipakai banyak kolom — diambil yang urutannya paling awal.
+     */
     public static function keyBerperan(PeranKolomShotlist $peran, ?int $styleId = null): ?string
     {
-        return static::aktif()
+        return static::aktif()->urut()
             ->when($styleId !== null, fn (Builder $q) => $q->where('style_id', $styleId))
             ->where('peran', $peran->value)
             ->value('key');
