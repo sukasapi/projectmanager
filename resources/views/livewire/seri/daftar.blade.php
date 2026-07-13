@@ -18,7 +18,10 @@
                 <div>
                     <h2 class="font-semibold text-slate-800">{{ $s->name }}</h2>
                     @if ($s->description)<p class="text-xs text-slate-400">{{ $s->description }}</p>@endif
-                    <p class="mt-0.5 text-[11px] text-slate-400">{{ $s->episode->count() }} episode</p>
+                    <p class="mt-0.5 text-[11px] text-slate-400">
+                        {{ $s->episode->count() }} episode
+                        · Style shotlist: <span class="font-medium text-slate-500">{{ $s->gayaShotlist?->name ?? 'Default studio' }}</span>
+                    </p>
                 </div>
                 <div class="flex items-center gap-3">
                     @php $p = $progres[$s->id] ?? 0; @endphp
@@ -70,6 +73,17 @@
                     <div>
                         <label class="mb-1 block text-sm font-medium text-slate-700">Deskripsi <span class="text-slate-400">(opsional)</span></label>
                         <textarea wire:model="description" rows="2" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"></textarea>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Style shotlist</label>
+                        <select wire:model="shotlistStyleId" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 @error('shotlistStyleId') border-red-400 @enderror">
+                            <option value="">— Default studio —</option>
+                            @foreach ($daftarStyle as $st)
+                                <option value="{{ $st->id }}">{{ $st->name }}@if ($st->is_default) (default)@endif</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-[11px] text-slate-400">Berlaku untuk shotlist seluruh episode pada seri ini.</p>
+                        @error('shotlistStyleId') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                     <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
                         <button type="button" wire:click="cancel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Batal</button>

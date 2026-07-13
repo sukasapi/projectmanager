@@ -7,8 +7,10 @@ use App\Livewire\Pengaturan\ShotlistKolom;
 use App\Livewire\Produksi\Shotlist;
 use App\Livewire\ReviewPanel;
 use App\Models\Adegan;
+use App\Models\GayaShotlist;
 use App\Models\KolomShotlist;
 use App\Models\Proyek;
+use App\Models\Seri;
 use App\Models\Shot;
 use App\Models\Shotlist as ShotlistRow;
 use App\Models\User;
@@ -50,6 +52,69 @@ class ShotlistTest extends TestCase
         Livewire::actingAs(User::factory()->create(['role' => 'Super Admin']))->test(ShotlistKolom::class)
             ->call('edit', $lain->id)->set('peran', 'scene')
             ->call('save')->assertHasErrors('peran');
+    }
+
+    public function test_admin_membuat_style_baru_dengan_kolom_terpisah(): void
+    {
+        $admin = User::factory()->create(['role' => 'Super Admin']);
+        $totalKolomAwal = KolomShotlist::count();
+
+        $lw = Livewire::actingAs($admin)->test(ShotlistKolom::class)
+            ->call('createStyle')->set('styleName', 'Simple 2D')
+            ->call('saveStyle')->assertHasNoErrors();
+
+        $style = GayaShotlist::where('name', 'Simple 2D')->firstOrFail();
+        $this->assertFalse($style->is_default); // default tetap Standar Studio
+
+        // Kolom baru masuk ke style baru; peran scene boleh dipakai karena beda style.
+        $lw->call('create')->set('label', 'Scene')->set('peran', 'scene')
+            ->call('save')->assertHasNoErrors();
+
+        $this->assertDatabaseHas('kf_kolom_shotlist', ['style_id' => $style->id, 'key' => 'scene']);
+        $this->assertSame($totalKolomAwal + 1, KolomShotlist::count());
+    }
+
+    public function test_seri_memilih_style_dan_shotlist_pakai_kolom_style_itu(): void
+    {
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+
+        $style = GayaShotlist::create(['name' => 'Minimal']);
+        $style->kolom()->createMany([
+            ['key' => 'scene', 'label' => 'Scene', 'tipe' => 'text', 'peran' => 'scene', 'urutan' => 1, 'is_active' => true],
+            ['key' => 'catatan', 'label' => 'Catatan', 'tipe' => 'text', 'urutan' => 2, 'is_active' => true],
+        ]);
+
+        $seri = Seri::create(['name' => 'Seri Minimal', 'shotlist_style_id' => $style->id]);
+        $ep = Proyek::create(['name' => 'Ep Minimal', 'series_id' => $seri->id, 'published_at' => now()]);
+
+        Livewire::actingAs($sup)->test(Shotlist::class)
+            ->set('proyekId', $ep->id)
+            ->call('gantiTampilan', 'tabel')
+            ->assertSee('Catatan')
+            ->assertDontSee('Type of Shot - Size'); // kolom style default tak ikut tampil
+    }
+
+    public function test_style_default_dipakai_episode_tanpa_seri(): void
+    {
+        $sup = User::factory()->create(['role' => 'Supervisor']);
+        $ep = Proyek::create(['name' => 'Ep Tanpa Seri', 'published_at' => now()]);
+
+        Livewire::actingAs($sup)->test(Shotlist::class)
+            ->set('proyekId', $ep->id)
+            ->call('gantiTampilan', 'tabel')
+            ->assertSee('Type of Shot - Size'); // kolom style default (Standar Studio)
+    }
+
+    public function test_hapus_style_dipakai_seri_ditolak(): void
+    {
+        $admin = User::factory()->create(['role' => 'Super Admin']);
+        $style = GayaShotlist::create(['name' => 'Terpakai']);
+        Seri::create(['name' => 'Seri X', 'shotlist_style_id' => $style->id]);
+
+        Livewire::actingAs($admin)->test(ShotlistKolom::class)
+            ->call('deleteStyle', $style->id);
+
+        $this->assertDatabaseHas('kf_gaya_shotlist', ['id' => $style->id, 'deleted_at' => null]);
     }
 
     public function test_impor_csv_membuat_baris(): void

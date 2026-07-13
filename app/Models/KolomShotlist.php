@@ -6,10 +6,12 @@ use App\Enums\PeranKolomShotlist;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Definisi kolom Shotlist (studio-wide). Lihat requirement Shotlist 2026-07.
+ * Definisi kolom Shotlist — milik satu gaya (GayaShotlist). Lihat requirement
+ * Shotlist 2026-07 & docs/2026-07-13_shotlist-style.md.
  */
 class KolomShotlist extends Model
 {
@@ -17,7 +19,7 @@ class KolomShotlist extends Model
 
     protected $table = 'kf_kolom_shotlist';
 
-    protected $fillable = ['key', 'label', 'tipe', 'opsi', 'peran', 'urutan', 'is_active'];
+    protected $fillable = ['style_id', 'key', 'label', 'tipe', 'opsi', 'peran', 'urutan', 'is_active'];
 
     protected function casts(): array
     {
@@ -27,6 +29,12 @@ class KolomShotlist extends Model
             'urutan' => 'integer',
             'peran' => PeranKolomShotlist::class,
         ];
+    }
+
+    /** @return BelongsTo<GayaShotlist, $this> */
+    public function gayaShotlist(): BelongsTo
+    {
+        return $this->belongsTo(GayaShotlist::class, 'style_id');
     }
 
     /** @param  Builder<KolomShotlist>  $q */
@@ -41,9 +49,18 @@ class KolomShotlist extends Model
         $q->orderBy('urutan')->orderBy('id');
     }
 
-    /** Key kolom yang berperan tertentu (scene/shot_code/duration), atau null. */
-    public static function keyBerperan(PeranKolomShotlist $peran): ?string
+    /** @param  Builder<KolomShotlist>  $q */
+    public function scopeGaya(Builder $q, ?int $styleId): void
     {
-        return static::aktif()->where('peran', $peran->value)->value('key');
+        $q->where('style_id', $styleId);
+    }
+
+    /** Key kolom yang berperan tertentu (scene/shot_code/duration) pada satu gaya, atau null. */
+    public static function keyBerperan(PeranKolomShotlist $peran, ?int $styleId = null): ?string
+    {
+        return static::aktif()
+            ->when($styleId !== null, fn (Builder $q) => $q->where('style_id', $styleId))
+            ->where('peran', $peran->value)
+            ->value('key');
     }
 }

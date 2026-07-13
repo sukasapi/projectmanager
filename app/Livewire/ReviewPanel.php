@@ -8,6 +8,7 @@ use App\Enums\RevisionStatus;
 use App\Enums\TaskStatus;
 use App\Exceptions\InvalidShotTaskTransition;
 use App\Models\CatatanReview;
+use App\Models\GayaShotlist;
 use App\Models\KolomShotlist;
 use App\Models\Notifikasi;
 use App\Models\Proyek;
@@ -110,12 +111,20 @@ class ReviewPanel extends Component
         $this->dispatch('toast', message: 'Deskripsi shot disimpan.');
     }
 
+    /** ID gaya shotlist episode shot yang sedang direview (dari seri, fallback default). */
+    private function shotlistStyleId(): ?int
+    {
+        $projectId = $this->task()?->shot?->adegan?->project_id;
+
+        return GayaShotlist::untukProyek($projectId ? Proyek::with('seri')->find($projectId) : null)?->id;
+    }
+
     /** Simpan referensi shotlist (metadata shot) — hanya pengelola. */
     public function simpanMeta(): void
     {
         abort_unless($this->dapatKelola(), 403);
 
-        $keys = KolomShotlist::query()->aktif()->whereNull('peran')->pluck('key');
+        $keys = KolomShotlist::query()->aktif()->gaya($this->shotlistStyleId())->whereNull('peran')->pluck('key');
         $meta = collect($this->metaEdit)->only($keys)->map(fn ($v) => trim((string) $v))->filter(fn ($v) => $v !== '')->all();
 
         $this->task()?->shot?->update(['meta' => $meta ?: null]);
@@ -438,8 +447,8 @@ class ReviewPanel extends Component
             'retake' => $this->task()?->jumlahRetake() ?? 0,
             'aiAktif' => app(GeminiService::class)->aktif(),
             'daftarArtis' => User::where('is_active', true)->orderBy('name')->get(['id', 'name', 'role']),
-            'shotlistLabel' => KolomShotlist::pluck('label', 'key'),
-            'metaKolom' => KolomShotlist::query()->aktif()->urut()->whereNull('peran')->get(['id', 'key', 'label', 'tipe', 'opsi']),
+            'shotlistLabel' => KolomShotlist::gaya($this->shotlistStyleId())->pluck('label', 'key'),
+            'metaKolom' => KolomShotlist::query()->aktif()->gaya($this->shotlistStyleId())->urut()->whereNull('peran')->get(['id', 'key', 'label', 'tipe', 'opsi']),
         ]);
     }
 }
