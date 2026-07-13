@@ -562,7 +562,7 @@ TEKS;
             $jumlah++;
         }
 
-        $this->dispatch('toast', message: $jumlah > 0 ? "{$jumlah} shot dibuat di Produksi." : 'Tidak ada baris baru untuk di-generate.');
+        $this->dispatch('toast', message: $jumlah > 0 ? "{$jumlah} shot dibuat di Produksi — lihat hasilnya di Shot Matrix." : 'Tidak ada baris baru untuk di-generate.');
     }
 
     public function gantiTampilan(string $mode): void

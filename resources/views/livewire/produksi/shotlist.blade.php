@@ -43,15 +43,40 @@
                             ? 'Generate '.$belumDigenerate.' baris shotlist menjadi shot di Produksi?'
                             : 'Tahap Shotlist belum disetujui ('.($shotlistStatusLabel ?? 'belum ada').'). Tetap generate '.$belumDigenerate.' baris ke Produksi?';
                     @endphp
-                    <button x-on:click="$confirm(@js($genPesan), { confirmText: 'Generate', icon: @js($shotlistDisetujui ? 'info' : 'warning') }).then(ok => ok && $wire.generate())"
-                            @disabled($belumDigenerate === 0)
-                            class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50 {{ $shotlistDisetujui ? 'bg-brand-700 hover:bg-brand-800' : 'bg-amber-600 hover:bg-amber-700' }}">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                        Generate ke Produksi
-                    </button>
+                    @if ($belumDigenerate === 0)
+                        <span title="{{ $rows->isEmpty() ? 'Isi shotlist dulu (manual / impor CSV / AI)' : 'Semua baris sudah di-generate — lihat hasil di Shot Matrix' }}">
+                            <button type="button" disabled
+                                    class="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3.5 py-2 text-sm font-semibold text-slate-400">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                Generate ke Produksi
+                            </button>
+                        </span>
+                    @else
+                        <button x-on:click="$confirm(@js($genPesan), { confirmText: 'Generate', icon: @js($shotlistDisetujui ? 'info' : 'warning') }).then(ok => ok && $wire.generate())"
+                                class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold text-white shadow-sm {{ $shotlistDisetujui ? 'bg-brand-700 hover:bg-brand-800' : 'bg-amber-600 hover:bg-amber-700' }}"
+                                title="{{ $shotlistDisetujui ? 'Buat '.$belumDigenerate.' baris menjadi shot di Produksi' : 'Tahap Shotlist belum disetujui — masih bisa generate, tapi sebaiknya disetujui dulu' }}">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                            Generate ke Produksi ({{ $belumDigenerate }})
+                        </button>
+                    @endif
                 </div>
             @endif
         </div>
+
+        {{-- Banner: seluruh shotlist sudah jadi shot di Produksi --}}
+        @if ($rows->isNotEmpty() && $belumDigenerate === 0)
+            <div class="flex flex-wrap items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+                <svg class="h-5 w-5 shrink-0 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p class="min-w-0 flex-1 text-sm text-green-800">
+                    Seluruh <span class="font-semibold">{{ $rows->count() }} baris</span> shotlist sudah di-generate menjadi shot di Produksi. Data kolom lain (VO, Visual, dll) tersimpan sebagai metadata shot — terlihat saat membuka panel review shot.
+                </p>
+                <a href="{{ route('shot-matrix') }}" wire:navigate
+                   class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700">
+                    Buka Shot Matrix
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                </a>
+            </div>
+        @endif
 
         {{-- Kartu ringkas satu baris: Skenario Episode & Impor CSV (klik → modal) --}}
         @if ($bisaIsiSkenario || $bisaKelola)
