@@ -188,8 +188,9 @@ class ShotlistKolom extends Component
 
         abort_unless($this->styleId !== null, 404);
 
-        // Satu peran hanya boleh dipakai satu kolom aktif DALAM GAYA yang sama.
-        if ($v['peran']) {
+        // Peran scene & shot_code hanya boleh satu kolom per gaya; duration boleh banyak
+        // (mis. Duration VO, Duration Animate, Realtime Duration).
+        if ($v['peran'] && $v['peran'] !== PeranKolomShotlist::DURATION->value) {
             $bentrok = KolomShotlist::gaya($this->styleId)->where('peran', $v['peran'])
                 ->when($this->editingId, fn ($q) => $q->whereKeyNot($this->editingId))
                 ->exists();
